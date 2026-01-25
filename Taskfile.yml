@@ -1,0 +1,46 @@
+version: "3"
+
+tasks:
+  fmt:
+    desc: Format Go sources
+    cmds:
+      - gofmt -w ./cmd ./internal
+
+  tidy:
+    desc: Tidy Go module dependencies
+    cmds:
+      - go mod tidy
+
+  test:
+    desc: Run Go tests
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run Go vet
+    cmds:
+      - go vet ./...
+
+  run:
+    desc: Run CLI
+    cmds:
+      - go run ./cmd/bordertown
+
+  build:
+    desc: Build CLI binary
+    cmds:
+      - go build -o ./bin/bordertown ./cmd/bordertown
+    sources:
+      - cmd/**/*.go
+      - internal/**/*.go
+      - go.mod
+      - go.sum
+    generates:
+      - bin/bordertown
+
+  ci:
+    desc: Run formatting and tests
+    deps:
+      - fmt
+      - lint
+      - test
