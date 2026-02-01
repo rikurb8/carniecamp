@@ -11,9 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rikurb8/carnie/internal/beads"
+	"github.com/rikurb8/carnie/internal/config"
+	"github.com/rikurb8/carnie/internal/prompts"
+	"github.com/rikurb8/carnie/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -51,6 +55,10 @@ type dashboardDataMsg struct {
 
 type dashboardTickMsg struct{}
 
+type improverSessionMsg struct {
+	Err error
+}
+
 type issueColumn struct {
 	Title      string
 	Issues     []bdIssue
@@ -71,35 +79,40 @@ type dashboardModel struct {
 	summary      bdStatusSummary
 	errMessage   string
 	showHelp     bool
+	showImprover bool
+	improveInput textinput.Model
 	collapsed    map[string]bool
 }
 
 type dashboardStyles struct {
-	header         lipgloss.Style
-	welcome        lipgloss.Style
-	subheader      lipgloss.Style
-	tag            lipgloss.Style
-	columnTitle    lipgloss.Style
-	columnTitleDim lipgloss.Style
-	panelTitle     lipgloss.Style
-	item           lipgloss.Style
-	itemSelected   lipgloss.Style
-	itemSelectedIn lipgloss.Style
-	footer         lipgloss.Style
-	helpBox        lipgloss.Style
-	helpTitle      lipgloss.Style
-	helpText       lipgloss.Style
-	dimText        lipgloss.Style
-	errorText      lipgloss.Style
-	navbarBar      lipgloss.Style
-	navbarTitle    lipgloss.Style
-	navbarMeta     lipgloss.Style
-	navbarSub      lipgloss.Style
-	tentTop        lipgloss.Style
-	tentPost       lipgloss.Style
-	tentBase       lipgloss.Style
-	tentStripeA    lipgloss.Style
-	tentStripeB    lipgloss.Style
+	header           lipgloss.Style
+	welcome          lipgloss.Style
+	subheader        lipgloss.Style
+	tag              lipgloss.Style
+	columnTitle      lipgloss.Style
+	columnTitleDim   lipgloss.Style
+	panelTitle       lipgloss.Style
+	item             lipgloss.Style
+	itemSelected     lipgloss.Style
+	itemSelectedIn   lipgloss.Style
+	paneBorder       lipgloss.Style
+	paneBorderActive lipgloss.Style
+	columnHeader     lipgloss.Style
+	footer           lipgloss.Style
+	helpBox          lipgloss.Style
+	helpTitle        lipgloss.Style
+	helpText         lipgloss.Style
+	dimText          lipgloss.Style
+	errorText        lipgloss.Style
+	navbarBar        lipgloss.Style
+	navbarTitle      lipgloss.Style
+	navbarMeta       lipgloss.Style
+	navbarSub        lipgloss.Style
+	tentTop          lipgloss.Style
+	tentPost         lipgloss.Style
+	tentBase         lipgloss.Style
+	tentStripeA      lipgloss.Style
+	tentStripeB      lipgloss.Style
 }
 
 type drawerEntry struct {
@@ -129,10 +142,16 @@ func newDashboardCommand() *cobra.Command {
 }
 
 func newDashboardModel(refresh time.Duration, limit int) dashboardModel {
+	improve := textinput.New()
+	improve.Placeholder = "Optional instructions"
+	improve.Prompt = ""
+	improve.CharLimit = 500
+
 	return dashboardModel{
-		refresh:   refresh,
-		limit:     limit,
-		collapsed: map[string]bool{},
+		refresh:      refresh,
+		limit:        limit,
+		collapsed:    map[string]bool{},
+		improveInput: improve,
 		columns: []issueColumn{
 			{Title: "Future Work"},
 			{Title: "Completed Work"},
@@ -149,9 +168,15 @@ func (m dashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = typed.Width
 		m.height = typed.Height
+		if m.showImprover {
+			m.applyImproverLayout()
+		}
 		m.ensureVisible()
 		return m, nil
 	case tea.KeyMsg:
+		if m.showImprover {
+			return m, m.updateImproverInput(typed)
+		}
 		if m.showHelp {
 			switch typed.String() {
 			case "h", "esc":
@@ -167,6 +192,12 @@ func (m dashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "h", "?":
 			m.showHelp = !m.showHelp
+			return m, nil
+		case "o":
+			m.showImprover = true
+			m.improveInput.SetValue("")
+			m.improveInput.Focus()
+			m.applyImproverLayout()
 			return m, nil
 		case "left":
 			m.setCollapseForSelected(true)
@@ -206,6 +237,13 @@ func (m dashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateColumns(typed.Data)
 		m.ensureVisible()
 		return m, nil
+	case improverSessionMsg:
+		if typed.Err != nil {
+			m.errMessage = typed.Err.Error()
+			return m, nil
+		}
+		m.errMessage = ""
+		return m, nil
 	}
 
 	return m, nil
@@ -224,17 +262,22 @@ func (m dashboardModel) View() string {
 	}
 
 	navbar := renderDashboardNavbar(inner, styles)
-	header := renderDashboardHeader(styles)
 	stats := renderDashboardStats(inner, styles)
 	body := renderDashboardBody(inner, styles)
-	footer := renderDashboardFooter(inner, styles)
+	footer := renderDashboardFooter()
 
-	output := lipgloss.JoinVertical(lipgloss.Left, navbar, header, stats, body, footer)
+	output := lipgloss.JoinVertical(lipgloss.Left, navbar, stats, body)
 	if m.showHelp {
 		output = renderHelpOverlay(output, inner, styles)
 	}
+	if m.showImprover {
+		output = renderImproverOverlay(output, inner, styles)
+	}
 	if m.width > 2 && m.height > 2 {
-		return renderTentFrame(output, styles, m.width, m.height)
+		return renderTentFrame(output, footer, styles, m.width, m.height)
+	}
+	if footer != "" {
+		return lipgloss.JoinVertical(lipgloss.Left, output, styles.footer.Render(footer))
 	}
 	return output
 }
@@ -484,28 +527,13 @@ func containsID(ids []string, id string) bool {
 	return false
 }
 
-func renderDashboardHeader(styles dashboardStyles) string {
-	welcome := styles.welcome.Render("Welcome to Carnie Camp")
-	return welcome
-}
-
 func renderDashboardNavbar(m dashboardModel, styles dashboardStyles) string {
 	width := m.width
 	if width <= 0 {
 		return ""
 	}
 
-	leftText := " CARNIE CAMP "
-	meta := "Beads loading..."
-	if !m.lastUpdated.IsZero() {
-		meta = fmt.Sprintf("Beads %d", m.summary.TotalIssues)
-	}
-	leftText, meta = clampNavbarSegments(width, leftText, meta)
-	left := styles.navbarTitle.Render(leftText)
-	right := styles.navbarMeta.Render(meta)
-	line1 := renderNavbarLine(width, left, right, styles.navbarBar)
-
-	leftSubText := " Layout: Master-Detail  |  tab switch  j/k move  left/right collapse  r refresh "
+	leftSubText := ""
 	updated := "Stand by..."
 	if m.errMessage != "" {
 		updated = m.errMessage
@@ -517,7 +545,7 @@ func renderDashboardNavbar(m dashboardModel, styles dashboardStyles) string {
 	rightSub := styles.navbarMeta.Render(updated)
 	line2 := renderNavbarLine(width, leftSub, rightSub, styles.navbarBar)
 
-	return lipgloss.JoinVertical(lipgloss.Left, line1, line2)
+	return line2
 }
 
 func renderNavbarLine(width int, left string, right string, style lipgloss.Style) string {
@@ -565,8 +593,7 @@ func renderDashboardStats(m dashboardModel, styles dashboardStyles) string {
 		styles.tag.Render(fmt.Sprintf("Closed %d", status.ClosedIssues)),
 	}
 	statsLine := styles.subheader.Render(lipgloss.JoinHorizontal(lipgloss.Left, tags...))
-	viewLine := styles.dimText.Render("Layout: Master-Detail")
-	return lipgloss.JoinVertical(lipgloss.Left, statsLine, viewLine)
+	return lipgloss.JoinVertical(lipgloss.Left, statsLine)
 }
 
 func renderDashboardColumns(m dashboardModel, styles dashboardStyles) string {
@@ -634,18 +661,38 @@ func renderMasterDetail(m dashboardModel, styles dashboardStyles) string {
 
 func renderDrawer(m dashboardModel, width int, height int, styles dashboardStyles) string {
 	rows := make([]string, 0, height)
+	innerWidth := width - 2
+	if innerWidth < 1 {
+		innerWidth = 1
+	}
 	for colIndex, column := range m.columns {
 		active := colIndex == m.activeColumn
 		entries := buildDrawerEntries(column, m.collapsed)
 		title := fmt.Sprintf("%s (%d)", column.Title, len(entries))
-		titleStyle := styles.columnTitleDim
+		headerStyle := styles.columnHeader
+		borderStyle := styles.paneBorder
 		if active {
-			titleStyle = styles.columnTitle
+			headerStyle = styles.columnTitle
+			borderStyle = styles.paneBorderActive
 		}
-		rows = append(rows, titleStyle.Render(truncateASCII(title, width)))
+		rows = append(rows, renderPaneRule(innerWidth, borderStyle))
+		if len(rows) >= height {
+			break
+		}
+		rows = append(rows, renderPaneHeaderRow(title, innerWidth, headerStyle, borderStyle))
+		if len(rows) >= height {
+			break
+		}
+		rows = append(rows, renderPaneRow("", innerWidth, styles.item, borderStyle))
+		if len(rows) >= height {
+			break
+		}
 
 		if len(entries) == 0 {
-			rows = append(rows, styles.dimText.Render(truncateASCII("(none)", width)))
+			rows = append(rows, renderPaneRow("(none)", innerWidth, styles.dimText, borderStyle))
+			if len(rows) < height {
+				rows = append(rows, renderPaneRule(innerWidth, borderStyle))
+			}
 			continue
 		}
 
@@ -653,8 +700,9 @@ func renderDrawer(m dashboardModel, width int, height int, styles dashboardStyle
 		if start < 0 {
 			start = 0
 		}
-		visible := height - len(rows)
+		visible := height - len(rows) - 1
 		if visible < 1 {
+			rows = append(rows, renderPaneRule(innerWidth, borderStyle))
 			break
 		}
 		end := start + visible
@@ -676,7 +724,7 @@ func renderDrawer(m dashboardModel, width int, height int, styles dashboardStyle
 			if entry.Level > 0 {
 				line = strings.Repeat("  ", entry.Level) + "- " + line
 			}
-			line = truncateASCII(line, width)
+			line = truncateASCII(line, innerWidth)
 			style := styles.item
 			if issue.IssueType == "epic" {
 				style = styles.panelTitle
@@ -688,12 +736,14 @@ func renderDrawer(m dashboardModel, width int, height int, styles dashboardStyle
 					style = styles.itemSelectedIn
 				}
 			}
-			rows = append(rows, style.Render(line))
-			if len(rows) >= height {
+			rows = append(rows, renderPaneRow(line, innerWidth, style, borderStyle))
+			if len(rows) >= height-1 {
 				break
 			}
 		}
-
+		if len(rows) < height {
+			rows = append(rows, renderPaneRule(innerWidth, borderStyle))
+		}
 		if len(rows) >= height {
 			break
 		}
@@ -704,6 +754,36 @@ func renderDrawer(m dashboardModel, width int, height int, styles dashboardStyle
 	}
 
 	return lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
+}
+
+func renderPaneRule(innerWidth int, borderStyle lipgloss.Style) string {
+	if innerWidth < 1 {
+		return ""
+	}
+	line := "+" + strings.Repeat("-", innerWidth) + "+"
+	return borderStyle.Render(line)
+}
+
+func renderPaneHeaderRow(text string, innerWidth int, textStyle lipgloss.Style, borderStyle lipgloss.Style) string {
+	text = truncateASCII(text, innerWidth)
+	pad := innerWidth - len(text)
+	if pad < 0 {
+		pad = 0
+	}
+	leftPad := pad / 2
+	rightPad := pad - leftPad
+	content := strings.Repeat(" ", leftPad) + textStyle.Render(text) + strings.Repeat(" ", rightPad)
+	return borderStyle.Render("|") + content + borderStyle.Render("|")
+}
+
+func renderPaneRow(text string, innerWidth int, textStyle lipgloss.Style, borderStyle lipgloss.Style) string {
+	text = truncateASCII(text, innerWidth)
+	pad := innerWidth - len(text)
+	if pad < 0 {
+		pad = 0
+	}
+	content := textStyle.Render(text) + strings.Repeat(" ", pad)
+	return borderStyle.Render("|") + content + borderStyle.Render("|")
 }
 
 func buildDrawerEntries(column issueColumn, collapsed map[string]bool) []drawerEntry {
@@ -871,20 +951,8 @@ func renderColumn(column issueColumn, width int, height int, active bool, styles
 	return lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 }
 
-func renderDashboardFooter(m dashboardModel, styles dashboardStyles) string {
-	hint := "h help  tab switch  j/k move  left/right collapse  r refresh  q quit"
-	updated := ""
-	updatedStyle := styles.dimText
-	if !m.lastUpdated.IsZero() {
-		updated = fmt.Sprintf("Updated %s", m.lastUpdated.Format("15:04:05"))
-	}
-	if m.errMessage != "" {
-		updated = truncateASCII(m.errMessage, m.width)
-		updatedStyle = styles.errorText
-	}
-
-	line := lipgloss.JoinHorizontal(lipgloss.Left, styles.footer.Render(hint), "  ", updatedStyle.Render(updated))
-	return line
+func renderDashboardFooter() string {
+	return "h/? help  o improve  tab switch  j/k move  left/right collapse  r refresh  q quit"
 }
 
 func renderHelpOverlay(base string, m dashboardModel, styles dashboardStyles) string {
@@ -902,41 +970,97 @@ func renderHelpOverlay(base string, m dashboardModel, styles dashboardStyles) st
 		dialogWidth = width
 	}
 
+	keysLine := fmt.Sprintf("%-6s %s", "Keys:", "q quit  o improve  tab switch section  j/k move  left/right collapse  r refresh  h/? close")
+	tipsLine := fmt.Sprintf("%-6s %s", "Tips:", "Use left/right to fold epics; tab switches Future/Completed; j/k moves selection.")
 	help := []string{
 		styles.helpTitle.Render("Dashboard Help"),
-		styles.helpText.Render("Keys: q quit  tab switch section  j/k move  left/right collapse  r refresh  h close"),
-		styles.helpText.Render("Layout: Master-Detail"),
+		styles.helpText.Render(keysLine),
+		styles.helpText.Render(tipsLine),
 		"",
-	}
-
-	selected := m.selectedIssue()
-	if selected != nil {
-		help = append(help,
-			styles.helpTitle.Render("Selected Issue"),
-			styles.helpText.Render(fmt.Sprintf("ID: %s", selected.ID)),
-			styles.helpText.Render(fmt.Sprintf("Title: %s", selected.Title)),
-			styles.helpText.Render(fmt.Sprintf("Status: %s", selected.Status)),
-			styles.helpText.Render(fmt.Sprintf("Priority: P%d", selected.Priority)),
-			styles.helpText.Render(fmt.Sprintf("Owner: %s", selected.Owner)),
-		)
-		if selected.UpdatedAt != "" {
-			help = append(help, styles.helpText.Render(fmt.Sprintf("Updated: %s", formatTimestamp(selected.UpdatedAt))))
-		}
-		if selected.Description != "" {
-			help = append(help, "", styles.helpText.Render("Notes:"))
-			for _, line := range wrapLines(selected.Description, dialogWidth-4) {
-				help = append(help, styles.helpText.Render(line))
-			}
-		}
-	} else {
-		help = append(help, styles.helpText.Render("No issue selected."))
 	}
 
 	box := styles.helpBox.Width(dialogWidth).Render(lipgloss.JoinVertical(lipgloss.Left, help...))
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
-func renderTentFrame(content string, styles dashboardStyles, width int, height int) string {
+func (m *dashboardModel) updateImproverInput(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "esc":
+		m.showImprover = false
+		m.improveInput.Blur()
+		return nil
+	case "ctrl+c", "q":
+		return tea.Quit
+	case "enter":
+		selected := m.selectedIssue()
+		if selected == nil {
+			m.errMessage = "Select an issue to improve"
+			return nil
+		}
+		instructions := strings.TrimSpace(m.improveInput.Value())
+		m.showImprover = false
+		m.improveInput.Blur()
+		return createImproverSessionCmd(*selected, instructions)
+	}
+	var cmd tea.Cmd
+	m.improveInput, cmd = m.improveInput.Update(msg)
+	return cmd
+}
+
+func renderImproverOverlay(base string, m dashboardModel, styles dashboardStyles) string {
+	width := m.width
+	height := m.height
+	if width <= 0 || height <= 0 {
+		return base
+	}
+
+	dialogWidth := minInt(width-6, 80)
+	if dialogWidth < 50 {
+		dialogWidth = minInt(width-2, 50)
+	}
+	if dialogWidth < 20 {
+		dialogWidth = width
+	}
+	selected := m.selectedIssue()
+	issueLine := "No issue selected"
+	if selected != nil {
+		issueLine = fmt.Sprintf("%s %s", selected.ID, selected.Title)
+	}
+	lines := []string{
+		styles.helpTitle.Render("Epic Improver / Task Splitter"),
+		styles.dimText.Render("Enter to launch opencode  |  esc close"),
+		"",
+		styles.panelTitle.Render("Active Issue"),
+		styles.helpText.Render(truncateASCII(issueLine, dialogWidth-4)),
+		"",
+		styles.panelTitle.Render("Optional Instructions"),
+		m.improveInput.View(),
+	}
+
+	box := styles.helpBox.Width(dialogWidth).Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
+}
+
+func (m *dashboardModel) applyImproverLayout() {
+	width := m.width
+	if width <= 0 {
+		return
+	}
+	dialogWidth := minInt(width-6, 80)
+	if dialogWidth < 50 {
+		dialogWidth = minInt(width-2, 50)
+	}
+	if dialogWidth < 20 {
+		dialogWidth = width
+	}
+	innerWidth := dialogWidth - 4
+	if innerWidth < 10 {
+		innerWidth = 10
+	}
+	m.improveInput.Width = innerWidth
+}
+
+func renderTentFrame(content string, footer string, styles dashboardStyles, width int, height int) string {
 	frameHeight := 3
 	if width < 4 || height <= frameHeight {
 		return content
@@ -957,7 +1081,7 @@ func renderTentFrame(content string, styles dashboardStyles, width int, height i
 
 	top := styles.tentTop.Render("/" + strings.Repeat("^", width-2) + "\\")
 	stripe := renderTentStripeLine(styles, width)
-	base := styles.tentBase.Render("\\" + strings.Repeat("_", width-2) + "/")
+	base := styles.tentBase.Render(renderTentBaseLine(footer, width))
 	rows := make([]string, 0, height)
 	rows = append(rows, top)
 	rows = append(rows, stripe)
@@ -969,14 +1093,45 @@ func renderTentFrame(content string, styles dashboardStyles, width int, height i
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
+func renderTentBaseLine(footer string, width int) string {
+	if width < 2 {
+		return ""
+	}
+	inner := width - 2
+	text := truncateASCII(footer, inner)
+	if text == "" {
+		text = strings.Repeat("_", inner)
+		return "\\" + text + "/"
+	}
+	pad := inner - len(text)
+	if pad < 0 {
+		pad = 0
+	}
+	return "\\" + text + strings.Repeat("_", pad) + "/"
+}
+
 func renderTentStripeLine(styles dashboardStyles, width int) string {
 	if width < 2 {
 		return ""
 	}
 	inner := width - 2
+	title := " CARNIE CAMP "
+	if inner <= len(title) {
+		title = ""
+	}
 	var b strings.Builder
 	b.WriteString(styles.tentPost.Render("|"))
+	start := -1
+	end := -1
+	if title != "" {
+		start = (inner - len(title)) / 2
+		end = start + len(title)
+	}
 	for i := 0; i < inner; i++ {
+		if i >= start && i < end {
+			b.WriteString(styles.tentStripeB.Render(string(title[i-start])))
+			continue
+		}
 		if i%2 == 0 {
 			b.WriteString(styles.tentStripeA.Render("^"))
 			continue
@@ -1004,6 +1159,59 @@ func loadDashboardDataCmd(limit int) tea.Cmd {
 	return func() tea.Msg {
 		data, err := fetchDashboardData(limit)
 		return dashboardDataMsg{Data: data, Err: err}
+	}
+}
+
+func createImproverSessionCmd(issue bdIssue, instructions string) tea.Cmd {
+	return func() tea.Msg {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return improverSessionMsg{Err: fmt.Errorf("get working directory: %w", err)}
+		}
+
+		var campCfg *config.CampConfig
+		model := config.DefaultOperatorModel
+		configPath := filepath.Join(cwd, config.CampConfigFile)
+		if cfg, err := config.LoadCampConfig(configPath); err == nil {
+			campCfg = cfg
+			if campCfg.Operator.Model != "" {
+				model = campCfg.Operator.Model
+			}
+		}
+
+		if !session.TmuxAvailable() {
+			return improverSessionMsg{Err: fmt.Errorf("tmux is not installed or not in PATH")}
+		}
+		if !session.Available(session.ToolOpencode) {
+			return improverSessionMsg{Err: fmt.Errorf("opencode is not installed or not in PATH")}
+		}
+
+		ctx := prompts.GatherContext(cwd, campCfg)
+		systemPrompt := prompts.BuildSystemPromptWithBase(ctx, improverBasePrompt)
+		prompt := buildImproverInitialPrompt(issue, instructions)
+
+		sessionName := sanitizeSessionName(fmt.Sprintf("cn-epic-improver-%s", issue.ID))
+		if sessionName == "" {
+			sessionName = "cn-epic-improver"
+		}
+		if session.SessionExists(sessionName) {
+			sessionName = fmt.Sprintf("%s-%s", sessionName, time.Now().Format("150405"))
+		}
+
+		opts := session.Options{
+			Tool:         session.ToolOpencode,
+			Model:        session.NormalizeModel(session.ToolOpencode, model),
+			SystemPrompt: systemPrompt,
+			Prompt:       prompt,
+			WorkDir:      cwd,
+			Interactive:  true,
+			SessionName:  sessionName,
+		}
+
+		if err := session.Spawn(opts); err != nil {
+			return improverSessionMsg{Err: err}
+		}
+		return improverSessionMsg{}
 	}
 }
 
@@ -1149,31 +1357,34 @@ func newDashboardStyles() dashboardStyles {
 	}
 
 	return dashboardStyles{
-		header:         lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true),
-		welcome:        lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true),
-		subheader:      lipgloss.NewStyle().Foreground(lipgloss.Color("222")),
-		tag:            lipgloss.NewStyle().Foreground(lipgloss.Color("52")).Background(lipgloss.Color("220")).Padding(0, 1).Bold(true),
-		columnTitle:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
-		columnTitleDim: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("130")),
-		panelTitle:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
-		item:           lipgloss.NewStyle().Foreground(lipgloss.Color("254")),
-		itemSelected:   lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("196")).Bold(true),
-		itemSelectedIn: lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Background(lipgloss.Color("130")),
-		footer:         lipgloss.NewStyle().Foreground(lipgloss.Color("179")),
-		helpBox:        lipgloss.NewStyle().Border(border).BorderForeground(lipgloss.Color("214")).Padding(1, 2).Foreground(lipgloss.Color("254")).Background(lipgloss.Color("52")),
-		helpTitle:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")),
-		helpText:       lipgloss.NewStyle().Foreground(lipgloss.Color("254")),
-		dimText:        lipgloss.NewStyle().Foreground(lipgloss.Color("178")),
-		errorText:      lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
-		navbarBar:      lipgloss.NewStyle().Background(lipgloss.Color("124")).Foreground(lipgloss.Color("230")).Bold(true),
-		navbarTitle:    lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Bold(true),
-		navbarMeta:     lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true),
-		navbarSub:      lipgloss.NewStyle().Foreground(lipgloss.Color("229")),
-		tentTop:        lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
-		tentPost:       lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Background(lipgloss.Color("52")).Bold(true),
-		tentBase:       lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
-		tentStripeA:    lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
-		tentStripeB:    lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("130")).Bold(true),
+		header:           lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true),
+		welcome:          lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true),
+		subheader:        lipgloss.NewStyle().Foreground(lipgloss.Color("222")),
+		tag:              lipgloss.NewStyle().Foreground(lipgloss.Color("52")).Background(lipgloss.Color("220")).Padding(0, 1).Bold(true),
+		columnTitle:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
+		columnTitleDim:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("130")),
+		panelTitle:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
+		item:             lipgloss.NewStyle().Foreground(lipgloss.Color("254")),
+		itemSelected:     lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("196")).Bold(true),
+		itemSelectedIn:   lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Background(lipgloss.Color("130")),
+		paneBorder:       lipgloss.NewStyle().Foreground(lipgloss.Color("130")),
+		paneBorderActive: lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true),
+		columnHeader:     lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true).Underline(true),
+		footer:           lipgloss.NewStyle().Foreground(lipgloss.Color("179")),
+		helpBox:          lipgloss.NewStyle().Border(border).BorderForeground(lipgloss.Color("214")).Padding(1, 2).Foreground(lipgloss.Color("254")).Background(lipgloss.Color("52")),
+		helpTitle:        lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")),
+		helpText:         lipgloss.NewStyle().Foreground(lipgloss.Color("254")),
+		dimText:          lipgloss.NewStyle().Foreground(lipgloss.Color("178")),
+		errorText:        lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
+		navbarBar:        lipgloss.NewStyle().Background(lipgloss.Color("124")).Foreground(lipgloss.Color("230")).Bold(true),
+		navbarTitle:      lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Bold(true),
+		navbarMeta:       lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true),
+		navbarSub:        lipgloss.NewStyle().Foreground(lipgloss.Color("229")),
+		tentTop:          lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
+		tentPost:         lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Background(lipgloss.Color("52")).Bold(true),
+		tentBase:         lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
+		tentStripeA:      lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
+		tentStripeB:      lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("130")).Bold(true),
 	}
 }
 
@@ -1225,6 +1436,61 @@ func formatTimestamp(value string) string {
 		return value
 	}
 	return parsed.Format("Jan 02 15:04")
+}
+
+const improverBasePrompt = `You are an epic improver and task splitter.
+Your job is to refine the current issue into a crisp epic, identify missing details, and split it into actionable tasks.
+Ask clarifying questions when needed, then propose a concrete plan with tasks and acceptance criteria.`
+
+func buildImproverInitialPrompt(issue bdIssue, instructions string) string {
+	var b strings.Builder
+	b.WriteString("Active issue:\n")
+	b.WriteString(fmt.Sprintf("ID: %s\n", issue.ID))
+	b.WriteString(fmt.Sprintf("Title: %s\n", issue.Title))
+	if issue.IssueType != "" {
+		b.WriteString(fmt.Sprintf("Type: %s\n", issue.IssueType))
+	}
+	if issue.Status != "" {
+		b.WriteString(fmt.Sprintf("Status: %s\n", issue.Status))
+	}
+	if issue.Priority != 0 {
+		b.WriteString(fmt.Sprintf("Priority: P%d\n", issue.Priority))
+	}
+	if issue.Owner != "" {
+		b.WriteString(fmt.Sprintf("Owner: %s\n", issue.Owner))
+	}
+	if issue.Description != "" {
+		b.WriteString("Description:\n")
+		b.WriteString(issue.Description)
+		b.WriteString("\n")
+	}
+	if strings.TrimSpace(instructions) != "" {
+		b.WriteString("\nUser instructions:\n")
+		b.WriteString(strings.TrimSpace(instructions))
+		b.WriteString("\n")
+	}
+	b.WriteString("\nPlease improve this epic and split into tasks.")
+	return b.String()
+}
+
+func sanitizeSessionName(name string) string {
+	if name == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastDash := false
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func wrapLines(text string, width int) []string {
