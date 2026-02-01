@@ -118,124 +118,60 @@ func renderMasterDetail(m Model, styles dashboardStyles) string {
 	if width <= 0 {
 		return ""
 	}
-	height := availableListHeight(m.height)
-	if height < 3 {
-		height = 3
-	}
-
-	minDrawer := 26
-	maxDrawer := 40
-	drawerWidth := width / 3
-	if drawerWidth < minDrawer {
-		drawerWidth = minDrawer
-	}
-	if drawerWidth > maxDrawer {
-		drawerWidth = maxDrawer
-	}
-	if drawerWidth > width-12 {
-		drawerWidth = width - 12
-	}
-	if drawerWidth < 20 {
-		drawerWidth = minInt(20, width)
-	}
+	drawerWidth, bodyHeight, listHeight, showSummary := drawerLayout(m.width, m.height)
 	gap := 2
 	if drawerWidth+gap >= width {
-		return renderDrawer(m, width, height, styles)
+		return renderActiveDrawer(m, width, bodyHeight, listHeight, showSummary, styles)
 	}
 
-	left := renderDrawer(m, drawerWidth, height, styles)
-	right := renderDetailPanel(m, width-drawerWidth-gap, height, styles)
+	left := renderActiveDrawer(m, drawerWidth, bodyHeight, listHeight, showSummary, styles)
+	right := renderDetailPanel(m, width-drawerWidth-gap, bodyHeight, styles)
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
 }
 
-func renderDrawer(m Model, width int, height int, styles dashboardStyles) string {
+func renderActiveDrawer(m Model, width int, height int, listHeight int, showSummary bool, styles dashboardStyles) string {
 	rows := make([]string, 0, height)
 	innerWidth := width - 2
 	if innerWidth < 1 {
 		innerWidth = 1
 	}
-	for colIndex, column := range m.columns {
-		active := colIndex == m.activeColumn
-		entries := buildDrawerEntries(column, m.collapsed)
-		title := fmt.Sprintf("%s (%d)", column.Title, len(entries))
-		headerStyle := styles.columnHeader
-		borderStyle := styles.paneBorder
-		if active {
-			headerStyle = styles.columnTitle
-			borderStyle = styles.paneBorderActive
+	if len(m.columns) == 0 || len(m.lists) == 0 {
+		return lipgloss.NewStyle().Width(width).Render("")
+	}
+	activeColumn := m.columns[m.activeColumn]
+	activeList := m.lists[m.activeColumn]
+	borderStyle := styles.paneBorderActive
+	entries := buildDrawerEntries(activeColumn, m.collapsed)
+	title := fmt.Sprintf("%s (%d)", activeColumn.Title, len(entries))
+	rows = append(rows, renderPaneRule(innerWidth, borderStyle))
+	if len(rows) < height {
+		rows = append(rows, renderPaneHeaderLine(title, innerWidth, styles.columnTitle, borderStyle))
+	}
+	if showSummary && len(rows) < height {
+		otherIndex := (m.activeColumn + 1) % len(m.columns)
+		other := m.columns[otherIndex]
+		otherCount := len(buildDrawerEntries(other, m.collapsed))
+		summary := fmt.Sprintf("Other: %s (%d)", other.Title, otherCount)
+		rows = append(rows, renderPaneHeaderLine(summary, innerWidth, styles.dimText, borderStyle))
+	}
+
+	activeList.SetSize(innerWidth, listHeight)
+	listView := activeList.View()
+	listLines := strings.Split(listView, "\n")
+	for len(listLines) < listHeight {
+		listLines = append(listLines, "")
+	}
+	if len(listLines) > listHeight {
+		listLines = listLines[:listHeight]
+	}
+	for _, line := range listLines {
+		rows = append(rows, renderPaneRawRow(line, innerWidth, borderStyle))
+		if len(rows) >= height-1 {
+			break
 		}
+	}
+	if len(rows) < height {
 		rows = append(rows, renderPaneRule(innerWidth, borderStyle))
-		if len(rows) >= height {
-			break
-		}
-		rows = append(rows, renderPaneHeaderRow(title, innerWidth, headerStyle, borderStyle))
-		if len(rows) >= height {
-			break
-		}
-		rows = append(rows, renderPaneRow("", innerWidth, styles.item, borderStyle))
-		if len(rows) >= height {
-			break
-		}
-
-		if len(entries) == 0 {
-			rows = append(rows, renderPaneRow("(none)", innerWidth, styles.dimText, borderStyle))
-			if len(rows) < height {
-				rows = append(rows, renderPaneRule(innerWidth, borderStyle))
-			}
-			continue
-		}
-
-		start := column.Offset
-		if start < 0 {
-			start = 0
-		}
-		visible := height - len(rows) - 1
-		if visible < 1 {
-			rows = append(rows, renderPaneRule(innerWidth, borderStyle))
-			break
-		}
-		end := start + visible
-		if end > len(entries) {
-			end = len(entries)
-		}
-
-		for i := start; i < end; i++ {
-			entry := entries[i]
-			issue := entry.Issue
-			line := fmt.Sprintf("%s %s", issue.ID, issue.Title)
-			if issue.IssueType == "epic" {
-				indicator := "[-]"
-				if m.collapsed[issue.ID] {
-					indicator = "[+]"
-				}
-				line = indicator + " EPIC " + line
-			}
-			if entry.Level > 0 {
-				line = strings.Repeat("  ", entry.Level) + "- " + line
-			}
-			line = truncateASCII(line, innerWidth)
-			style := styles.item
-			if issue.IssueType == "epic" {
-				style = styles.panelTitle
-			}
-			if i == column.Selected {
-				if active {
-					style = styles.itemSelected
-				} else {
-					style = styles.itemSelectedIn
-				}
-			}
-			rows = append(rows, renderPaneRow(line, innerWidth, style, borderStyle))
-			if len(rows) >= height-1 {
-				break
-			}
-		}
-		if len(rows) < height {
-			rows = append(rows, renderPaneRule(innerWidth, borderStyle))
-		}
-		if len(rows) >= height {
-			break
-		}
 	}
 
 	for len(rows) < height {
@@ -265,6 +201,16 @@ func renderPaneHeaderRow(text string, innerWidth int, textStyle lipgloss.Style, 
 	return borderStyle.Render("|") + content + borderStyle.Render("|")
 }
 
+func renderPaneHeaderLine(text string, innerWidth int, textStyle lipgloss.Style, borderStyle lipgloss.Style) string {
+	text = truncateASCII(text, innerWidth)
+	pad := innerWidth - len(text)
+	if pad < 0 {
+		pad = 0
+	}
+	content := textStyle.Render(text) + strings.Repeat(" ", pad)
+	return borderStyle.Render("|") + content + borderStyle.Render("|")
+}
+
 func renderPaneRow(text string, innerWidth int, textStyle lipgloss.Style, borderStyle lipgloss.Style) string {
 	text = truncateASCII(text, innerWidth)
 	pad := innerWidth - len(text)
@@ -272,6 +218,11 @@ func renderPaneRow(text string, innerWidth int, textStyle lipgloss.Style, border
 		pad = 0
 	}
 	content := textStyle.Render(text) + strings.Repeat(" ", pad)
+	return borderStyle.Render("|") + content + borderStyle.Render("|")
+}
+
+func renderPaneRawRow(text string, innerWidth int, borderStyle lipgloss.Style) string {
+	content := lipgloss.NewStyle().Width(innerWidth).Render(text)
 	return borderStyle.Render("|") + content + borderStyle.Render("|")
 }
 
@@ -340,65 +291,6 @@ func renderPanel(title string, lines []string, width int, height int, styles das
 	for len(rows) < height {
 		rows = append(rows, "")
 	}
-	return lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
-}
-
-func renderColumn(column issueColumn, width int, height int, active bool, styles dashboardStyles) string {
-	if width <= 0 {
-		return ""
-	}
-
-	title := fmt.Sprintf("%s (%d)", column.Title, len(column.Issues))
-	titleStyle := styles.columnTitle
-	if !active {
-		titleStyle = styles.columnTitleDim
-	}
-
-	rows := make([]string, 0, height+1)
-	rows = append(rows, titleStyle.Render(truncateASCII(title, width)))
-
-	bodyHeight := height - 1
-	if bodyHeight < 0 {
-		bodyHeight = 0
-	}
-
-	if len(column.Issues) == 0 {
-		for i := 0; i < bodyHeight; i++ {
-			rows = append(rows, styles.dimText.Render(truncateASCII("(no issues)", width)))
-		}
-		return lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
-	}
-
-	start := column.Offset
-	if start < 0 {
-		start = 0
-	}
-	end := start + bodyHeight
-	if end > len(column.Issues) {
-		end = len(column.Issues)
-	}
-
-	for i := start; i < end; i++ {
-		issue := column.Issues[i]
-		line := fmt.Sprintf("P%d %s %s", issue.Priority, issue.ID, issue.Title)
-		line = truncateASCII(line, width)
-
-		style := styles.item
-		if i == column.Selected {
-			if active {
-				style = styles.itemSelected
-			} else {
-				style = styles.itemSelectedIn
-			}
-		}
-
-		rows = append(rows, style.Render(line))
-	}
-
-	for len(rows) < height {
-		rows = append(rows, "")
-	}
-
 	return lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 }
 

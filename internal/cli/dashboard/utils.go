@@ -13,6 +13,38 @@ func availableListHeight(height int) int {
 	return listHeight
 }
 
+func drawerLayout(totalWidth int, totalHeight int) (drawerWidth int, bodyHeight int, listHeight int, showSummary bool) {
+	bodyHeight = availableListHeight(totalHeight)
+	if bodyHeight < 3 {
+		bodyHeight = 3
+	}
+	minDrawer := 26
+	maxDrawer := 40
+	drawerWidth = totalWidth / 3
+	if drawerWidth < minDrawer {
+		drawerWidth = minDrawer
+	}
+	if drawerWidth > maxDrawer {
+		drawerWidth = maxDrawer
+	}
+	if drawerWidth > totalWidth-12 {
+		drawerWidth = totalWidth - 12
+	}
+	if drawerWidth < 20 {
+		drawerWidth = minInt(20, totalWidth)
+	}
+	showSummary = bodyHeight >= 6
+	headerLines := 1
+	if showSummary {
+		headerLines = 2
+	}
+	listHeight = bodyHeight - headerLines - 2
+	if listHeight < 1 {
+		listHeight = 1
+	}
+	return drawerWidth, bodyHeight, listHeight, showSummary
+}
+
 func truncateASCII(value string, width int) string {
 	if width <= 0 {
 		return ""
@@ -89,4 +121,45 @@ func minInt(a int, b int) int {
 		return a
 	}
 	return b
+}
+
+func maxInt(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func wrapTitle(title string, firstWidth int, nextWidth int) []string {
+	if firstWidth <= 0 {
+		firstWidth = 1
+	}
+	if nextWidth <= 0 {
+		nextWidth = 1
+	}
+	words := strings.Fields(title)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	lines := []string{}
+	current := ""
+	currentWidth := firstWidth
+	for _, word := range words {
+		if current == "" {
+			current = word
+			continue
+		}
+		if len(current)+1+len(word) > currentWidth {
+			lines = append(lines, current)
+			current = word
+			currentWidth = nextWidth
+			continue
+		}
+		current = current + " " + word
+	}
+	if current != "" {
+		lines = append(lines, current)
+	}
+	return lines
 }

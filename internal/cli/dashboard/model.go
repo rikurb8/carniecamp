@@ -3,6 +3,7 @@ package dashboard
 import (
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/rikurb8/carnie/internal/cli/bd"
 )
@@ -44,8 +45,6 @@ type tickMsg struct{}
 type issueColumn struct {
 	Title      string
 	Issues     []Issue
-	Selected   int
-	Offset     int
 	ParentByID map[string]string
 	LevelByID  map[string]int
 }
@@ -64,6 +63,7 @@ type Model struct {
 	showImprover bool
 	improveInput textinput.Model
 	collapsed    map[string]bool
+	lists        []list.Model
 }
 
 type drawerEntry struct {
@@ -76,6 +76,10 @@ func NewModel(refresh time.Duration, limit int) Model {
 	improve.Placeholder = "Optional instructions"
 	improve.Prompt = ""
 	improve.CharLimit = 500
+	styles := newDashboardStyles()
+	delegate := newDrawerDelegate(styles, 1)
+	futureList := newDrawerList(delegate)
+	closedList := newDrawerList(delegate)
 
 	return Model{
 		refresh:      refresh,
@@ -86,5 +90,6 @@ func NewModel(refresh time.Duration, limit int) Model {
 			{Title: "Future Work"},
 			{Title: "Completed Work"},
 		},
+		lists: []list.Model{futureList, closedList},
 	}
 }
