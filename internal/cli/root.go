@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rikurb8/carnie/internal/cli/dashboard"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -24,7 +25,7 @@ func NewRootCommand() *cobra.Command {
 
 	rootCmd.AddCommand(newDummyCommand())
 	rootCmd.AddCommand(newStatusCommand())
-	rootCmd.AddCommand(newDashboardCommand())
+	rootCmd.AddCommand(dashboard.NewCommand())
 	rootCmd.AddCommand(newCampCommand())
 	rootCmd.AddCommand(newOperatorCommand())
 

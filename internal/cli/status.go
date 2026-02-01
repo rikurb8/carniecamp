@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/rikurb8/carnie/internal/cli/bd"
 	"github.com/spf13/cobra"
 )
 
@@ -24,35 +24,6 @@ type bdInfo struct {
 	Mode            string `json:"mode"`
 }
 
-type bdStatusSummary struct {
-	TotalIssues             int     `json:"total_issues"`
-	OpenIssues              int     `json:"open_issues"`
-	InProgressIssues        int     `json:"in_progress_issues"`
-	ClosedIssues            int     `json:"closed_issues"`
-	BlockedIssues           int     `json:"blocked_issues"`
-	DeferredIssues          int     `json:"deferred_issues"`
-	ReadyIssues             int     `json:"ready_issues"`
-	TombstoneIssues         int     `json:"tombstone_issues"`
-	PinnedIssues            int     `json:"pinned_issues"`
-	EpicsEligibleForClosure int     `json:"epics_eligible_for_closure"`
-	AverageLeadTimeHours    float64 `json:"average_lead_time_hours"`
-}
-
-type bdRecentActivity struct {
-	HoursTracked   int `json:"hours_tracked"`
-	CommitCount    int `json:"commit_count"`
-	IssuesCreated  int `json:"issues_created"`
-	IssuesClosed   int `json:"issues_closed"`
-	IssuesUpdated  int `json:"issues_updated"`
-	IssuesReopened int `json:"issues_reopened"`
-	TotalChanges   int `json:"total_changes"`
-}
-
-type bdStatus struct {
-	Summary        bdStatusSummary  `json:"summary"`
-	RecentActivity bdRecentActivity `json:"recent_activity"`
-}
-
 type kvRow struct {
 	Label string
 	Value string
@@ -63,12 +34,12 @@ func newStatusCommand() *cobra.Command {
 		Use:   "status",
 		Short: "Show project details and beads summary",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			infoOutput, err := runBdJSON("info", "--json")
+			infoOutput, err := bd.RunJSON("info", "--json")
 			if err != nil {
 				return err
 			}
 
-			statusOutput, err := runBdJSON("status", "--json")
+			statusOutput, err := bd.RunJSON("status", "--json")
 			if err != nil {
 				return err
 			}
@@ -78,7 +49,7 @@ func newStatusCommand() *cobra.Command {
 				return fmt.Errorf("parse bd info: %w", err)
 			}
 
-			var status bdStatus
+			var status bd.Status
 			if err := json.Unmarshal(statusOutput, &status); err != nil {
 				return fmt.Errorf("parse bd status: %w", err)
 			}
@@ -172,35 +143,6 @@ func newStatusCommand() *cobra.Command {
 	}
 
 	return cmd
-}
-
-func runBdJSON(args ...string) ([]byte, error) {
-	command := exec.Command("bd", args...)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		message := strings.TrimSpace(string(output))
-		if message != "" {
-			message = "\n" + message
-		}
-		return nil, fmt.Errorf("bd %s failed: %w%s", strings.Join(args, " "), err, message)
-	}
-
-	return output, nil
-}
-
-func runBdJSONInDir(dir string, args ...string) ([]byte, error) {
-	command := exec.Command("bd", args...)
-	command.Dir = dir
-	output, err := command.CombinedOutput()
-	if err != nil {
-		message := strings.TrimSpace(string(output))
-		if message != "" {
-			message = "\n" + message
-		}
-		return nil, fmt.Errorf("bd %s failed: %w%s", strings.Join(args, " "), err, message)
-	}
-
-	return output, nil
 }
 
 func padRight(value string, width int) string {
