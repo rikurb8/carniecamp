@@ -1,8 +1,16 @@
 # Carnie
 
-**Step right up for sane agent orchestration**
+```
+🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪
+🎠🤡🎈🎉🎭🎪🎟️🎡🎢🎠🤹‍♂️🎪🎭🎉🎈🤡🎠🎢🎡🎟️🎪🎭🎉🎈🤡🎠🎢🎡🎟️🎪
+🎪                                                                🎪
+🎪   🤹‍♀️🎉  W E L C O M E   T O   T H E   C A R N I V A L  🎉🤹‍ 🎪
+🎪                                                                🎪
+🎠🤡🎈🎉🎭🎪🎟️🎡🎢🎠🤹‍♂️🎪🎭🎉🎈🤡🎠🎢🎡🎟️🎪🎭🎉🎈🤡🎠🎢🎡🎟️🎪
+🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪🎪
+```
 
-## Welcome to the Big Top
+## What is this?
 
 Carnie is a reliable, portable agent orchestration system installed inside your project. It brings a crew of helpers into your repo, keeps their work tracked, and makes planning feel like a well-run show.
 
@@ -30,37 +38,25 @@ carnie operator review
 | Easier project management      | Opinionated way of managing work             |
 | Scary to run YOLO agents       | Carnie runs a safer show                     |
 
-## Core Cast
+## Core Concepts
 
 ### The Operator 🎛️
 
-Your ringmaster for AI planning. The Operator is an Opencode instance with full context about your workspace, projects, and agents. **Start here**—tell the Operator what you want to accomplish.
+Operator is the main interaction point for all things related to Carnie. You can ask it about Carnie, plan work and manage agents.
 
 ### Camp 🏕️
 
-Your project-local workspace. Initialize it with `carnie camp init` to create `camp.yml` inside the repo.
+Your project-local workspace. Initialize it with `carnie camp init` to create `camp.yml` inside the repo. Contains general configuration related to tools, user preferences, and project-specific settings.
 
 ### Beads 📌
 
-Work items tracked by `bd` inside the project repo.
-
-### Crew Members 👤
-
-Your personal workspace within the project. Where you do hands-on work.
-
-### Polecats 🦨
-
-Ephemeral worker agents that spawn, complete a task, and disappear.
-
-### Hooks 🪝
-
-Git worktree-based persistent storage for agent work. Survives crashes and restarts.
-
-### Convoys 🚚
-
-Work tracking units. Bundle multiple beads that get assigned to agents.
+Beads are the unit of work in Carnie. They represent a single task or a group of tasks that need to be completed. Beads can be created, assigned, and tracked using the Operator.
 
 See `docs/CAMP.md` and `docs/OPERATOR.md` for details.
+
+## Carnie Rules
+
+- TODO
 
 ## Installation
 
