@@ -1,6 +1,5 @@
 version: 1
 name: bordertown
-rigs_dir: ./rigs
 mayor:
     model: openai/gpt-5.2-codex
     planning_tool: opencode

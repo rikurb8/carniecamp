@@ -20,15 +20,7 @@ bt town init --force
 
 ## What is a Town?
 
-A **Town** is your workspace directory - the root folder containing your projects (rigs), agents, and configuration. The `town.yml` file stores workspace-level settings.
-
-## Town beads vs rig beads
-
-Town beads track work for Bordertown itself (the workspace-level tool). These beads live in the Bordertown repo and show up as "Town beads" in the dashboard.
-
-Rig beads track work inside a specific rig repository. Run `bd` commands from within a rig to manage them. The dashboard shows each rig with its own bead summary.
-
-See `docs/RIG.md` for rig-specific details.
+A **Town** is a small project workspace installed inside your repo. The `town.yml` file stores project-level settings that Bordertown uses for planning and coordination.
 
 ## town.yml Configuration
 
@@ -38,7 +30,6 @@ Running `bt town init` creates a `town.yml` file:
 version: 1
 name: my-workspace
 description: "Optional description"
-rigs_dir: ./rigs
 mayor:
   model: openai/gpt-5.2-codex
 defaults:
@@ -54,7 +45,6 @@ Model values use the `<provider>/<model>` format (e.g., `openai/gpt-5.2-codex`).
 | `version` | Config schema version | `1` |
 | `name` | Workspace name | Directory name |
 | `description` | What this workspace is for | (empty) |
-| `rigs_dir` | Where project repos live | `./rigs` |
 | `mayor.model` | Model for mayor commands | `openai/gpt-5.2-codex` |
 | `defaults.agent_model` | Default model for agents | `openai/gpt-5.2-codex` |
 

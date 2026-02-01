@@ -3,14 +3,12 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/rikurb8/bordertown/internal/rig"
 	"github.com/spf13/cobra"
 )
 
@@ -32,8 +30,6 @@ type dashboardData struct {
 	InProgress []bdIssue
 	Blocked    []bdIssue
 	Closed     []bdIssue
-	Rigs       []rigBeadsSummary
-	RigError   string
 }
 
 type dashboardDataMsg struct {
@@ -42,14 +38,6 @@ type dashboardDataMsg struct {
 }
 
 type dashboardTickMsg struct{}
-
-type rigBeadsSummary struct {
-	Name      string
-	LocalPath string
-	Status    bdStatusSummary
-	Ready     []bdIssue
-	Err       string
-}
 
 type dashboardViewMode string
 
@@ -77,8 +65,6 @@ type dashboardModel struct {
 	errMessage   string
 	showHelp     bool
 	viewMode     dashboardViewMode
-	rigs         []rigBeadsSummary
-	rigError     string
 }
 
 type dashboardStyles struct {
@@ -201,8 +187,6 @@ func (m dashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.errMessage = ""
 		m.lastUpdated = time.Now()
 		m.summary = typed.Data.Status.Summary
-		m.rigs = typed.Data.Rigs
-		m.rigError = typed.Data.RigError
 		m.updateColumns(typed.Data)
 		m.ensureVisible()
 		return m, nil
@@ -360,7 +344,7 @@ func renderDashboardStats(m dashboardModel, styles dashboardStyles) string {
 		viewLabel = "Kanban"
 	}
 	statsLine := styles.subheader.Render(lipgloss.JoinHorizontal(lipgloss.Left, tags...))
-	viewLine := styles.dimText.Render(fmt.Sprintf("View: %s (v toggle)  Town beads here, rig beads in rigs", viewLabel))
+	viewLine := styles.dimText.Render(fmt.Sprintf("View: %s (v toggle)", viewLabel))
 	return lipgloss.JoinVertical(lipgloss.Left, statsLine, viewLine)
 }
 
@@ -396,22 +380,13 @@ func renderDashboardBody(m dashboardModel, styles dashboardStyles) string {
 }
 
 func renderDashboardOverview(m dashboardModel, styles dashboardStyles) string {
-	gap := 2
 	width := m.width
 	if width <= 0 {
 		return ""
 	}
-	available := width - gap
-	if available < 2 {
-		available = 2
-	}
-	panelWidth := available / 2
+	panelWidth := width
 	panelHeight := availableListHeight(m.height)
-
-	townPanel := renderTownPanel(m, panelWidth, panelHeight, styles)
-	rigsPanel := renderRigsPanel(m, panelWidth, panelHeight, styles)
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, joinWithGap(gap, []string{townPanel, rigsPanel})...)
+	return renderTownPanel(m, panelWidth, panelHeight, styles)
 }
 
 func renderTownPanel(m dashboardModel, width int, height int, styles dashboardStyles) string {
@@ -430,50 +405,7 @@ func renderTownPanel(m dashboardModel, width int, height int, styles dashboardSt
 	lines = append(lines, "")
 	lines = append(lines, renderIssuePreviewLines("Blocked", m.columns[2].Issues, 2, width, styles)...)
 
-	return renderPanel("Town Beads", lines, width, height, styles)
-}
-
-func renderRigsPanel(m dashboardModel, width int, height int, styles dashboardStyles) string {
-	lines := []string{}
-	if m.rigError != "" {
-		lines = append(lines, styles.errorText.Render(truncateASCII(m.rigError, width)))
-		lines = append(lines, "")
-	}
-	if len(m.rigs) == 0 {
-		lines = append(lines, styles.dimText.Render(truncateASCII("No rigs registered. Add one with bordertown rig add.", width)))
-		return renderPanel("Rigs", lines, width, height, styles)
-	}
-
-	for idx, rigSummary := range m.rigs {
-		if idx > 0 {
-			lines = append(lines, "")
-		}
-		lines = append(lines, styles.columnTitle.Render(truncateASCII(rigSummary.Name, width)))
-		if rigSummary.Err != "" {
-			lines = append(lines, styles.errorText.Render(truncateASCII("Error: "+rigSummary.Err, width)))
-			continue
-		}
-		lines = append(lines, styles.dimText.Render(truncateASCII(
-			fmt.Sprintf("Open %d  Ready %d  In Prog %d  Blocked %d", rigSummary.Status.OpenIssues, rigSummary.Status.ReadyIssues, rigSummary.Status.InProgressIssues, rigSummary.Status.BlockedIssues),
-			width,
-		)))
-		lines = append(lines, styles.item.Render(truncateASCII(renderRigNextLine(rigSummary.Ready), width)))
-	}
-
-	return renderPanel("Rigs", lines, width, height, styles)
-}
-
-func renderRigNextLine(ready []bdIssue) string {
-	if len(ready) == 0 {
-		return "Next: (none)"
-	}
-	limit := minInt(len(ready), 2)
-	items := make([]string, 0, limit)
-	for i := 0; i < limit; i++ {
-		issue := ready[i]
-		items = append(items, fmt.Sprintf("P%d %s %s", issue.Priority, issue.ID, issue.Title))
-	}
-	return "Next: " + strings.Join(items, " | ")
+	return renderPanel("Project Beads", lines, width, height, styles)
 }
 
 func renderIssuePreviewLines(title string, issues []bdIssue, limit int, width int, styles dashboardStyles) []string {
@@ -692,16 +624,12 @@ func fetchDashboardData(limit int) (dashboardData, error) {
 		return dashboardData{}, err
 	}
 
-	rigs, rigErr := fetchRigsData(2)
-
 	return dashboardData{
 		Status:     status,
 		Ready:      ready,
 		InProgress: inProgress,
 		Blocked:    blocked,
 		Closed:     closed,
-		Rigs:       rigs,
-		RigError:   rigErr,
 	}, nil
 }
 
@@ -710,81 +638,6 @@ func fetchIssues(args []string, limit int) ([]bdIssue, error) {
 		args = append(args, "--limit", strconv.Itoa(limit))
 	}
 	output, err := runBdJSON(args...)
-	if err != nil {
-		return nil, err
-	}
-	return parseBdIssues(output)
-}
-
-func fetchRigsData(previewLimit int) ([]rigBeadsSummary, string) {
-	rigs, err := rig.ListRigs()
-	if err != nil {
-		return nil, fmt.Sprintf("Load rigs: %v", err)
-	}
-
-	if len(rigs) == 0 {
-		return []rigBeadsSummary{}, ""
-	}
-
-	results := make([]rigBeadsSummary, 0, len(rigs))
-	for _, rigItem := range rigs {
-		summary := rigBeadsSummary{
-			Name:      rigItem.Name,
-			LocalPath: rigItem.LocalPath,
-		}
-		if rigItem.LocalPath == "" {
-			summary.Err = "missing local path"
-			results = append(results, summary)
-			continue
-		}
-		info, err := os.Stat(rigItem.LocalPath)
-		if err != nil {
-			summary.Err = err.Error()
-			results = append(results, summary)
-			continue
-		}
-		if !info.IsDir() {
-			summary.Err = "path is not a directory"
-			results = append(results, summary)
-			continue
-		}
-		status, err := fetchStatusInDir(rigItem.LocalPath)
-		if err != nil {
-			summary.Err = err.Error()
-			results = append(results, summary)
-			continue
-		}
-		summary.Status = status.Summary
-		ready, err := fetchIssuesInDir(rigItem.LocalPath, []string{"list", "--ready", "--json", "--sort", "priority"}, previewLimit)
-		if err != nil {
-			summary.Err = err.Error()
-			results = append(results, summary)
-			continue
-		}
-		summary.Ready = ready
-		results = append(results, summary)
-	}
-
-	return results, ""
-}
-
-func fetchStatusInDir(dir string) (bdStatus, error) {
-	output, err := runBdJSONInDir(dir, "status", "--json")
-	if err != nil {
-		return bdStatus{}, err
-	}
-	var status bdStatus
-	if err := json.Unmarshal(output, &status); err != nil {
-		return bdStatus{}, fmt.Errorf("parse bd status: %w", err)
-	}
-	return status, nil
-}
-
-func fetchIssuesInDir(dir string, args []string, limit int) ([]bdIssue, error) {
-	if limit > 0 {
-		args = append(args, "--limit", strconv.Itoa(limit))
-	}
-	output, err := runBdJSONInDir(dir, args...)
 	if err != nil {
 		return nil, err
 	}

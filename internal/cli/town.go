@@ -12,8 +12,8 @@ import (
 func newTownCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "town",
-		Short: "Manage bordertown workspace",
-		Long:  "Commands for managing the bordertown workspace (town) configuration.",
+		Short: "Manage bordertown town config",
+		Long:  "Commands for managing the town.yml configuration inside your project.",
 	}
 
 	cmd.AddCommand(newTownInitCommand())
@@ -28,8 +28,8 @@ func newTownInitCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Initialize a new town workspace",
-		Long:  "Creates a town.yml configuration file in the current directory.",
+		Short: "Initialize a new town",
+		Long:  "Creates a town.yml configuration file in the current project.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configPath := filepath.Join(".", config.TownConfigFile)
 

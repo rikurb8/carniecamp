@@ -173,10 +173,6 @@ func TestTownInitConfigHasDefaults(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if cfg.RigsDir != config.DefaultRigsDir {
-		t.Errorf("expected rigs_dir %q, got %q", config.DefaultRigsDir, cfg.RigsDir)
-	}
-
 	if cfg.Mayor.Model != config.DefaultMayorModel {
 		t.Errorf("expected mayor.model %q, got %q", config.DefaultMayorModel, cfg.Mayor.Model)
 	}

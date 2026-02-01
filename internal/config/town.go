@@ -10,7 +10,6 @@ import (
 const (
 	TownConfigFile      = "town.yml"
 	CurrentVersion      = 1
-	DefaultRigsDir      = "./rigs"
 	DefaultMayorModel   = "openai/gpt-5.2-codex"
 	DefaultAgentModel   = "openai/gpt-5.2-codex"
 	DefaultPlanningTool = "opencode"
@@ -20,7 +19,6 @@ type TownConfig struct {
 	Version     int         `yaml:"version"`
 	Name        string      `yaml:"name"`
 	Description string      `yaml:"description,omitempty"`
-	RigsDir     string      `yaml:"rigs_dir,omitempty"`
 	Mayor       MayorConfig `yaml:"mayor,omitempty"`
 	Defaults    Defaults    `yaml:"defaults,omitempty"`
 }
@@ -39,7 +37,6 @@ func NewTownConfig(name string) *TownConfig {
 	return &TownConfig{
 		Version: CurrentVersion,
 		Name:    name,
-		RigsDir: DefaultRigsDir,
 		Mayor: MayorConfig{
 			Model:        DefaultMayorModel,
 			PlanningTool: DefaultPlanningTool,

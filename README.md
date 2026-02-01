@@ -4,7 +4,7 @@
 
 ## Overview
 
-Bordertown is a reliable, portable agent orchestration system.
+Bordertown is a reliable, portable agent orchestration system installed inside your project.
 
 ## CLI
 
@@ -45,24 +45,17 @@ Your primary AI coordinator. The Mayor is a Opencode instance with full context 
 
 ### Town 🏘️
 
-Your workspace directory (e.g., `~/bordertown/`). Contains all projects, agents, and configuration.
-
-### Rigs 🏗️
-
-Project containers. Each rig wraps a git repository and manages its associated agents.
+Your project-local workspace. Initialize it with `bordertown town init` to create `town.yml` inside the repo.
 
 ### Beads 📌
 
-Work items tracked by `bd`, split into two flavors:
+Work items tracked by `bd` inside the project repo.
 
-- Town beads: Bordertown's own work, managed in this repo.
-- Rig beads: project work inside each rig repo.
-
-See `docs/TOWN.md` and `docs/RIG.md` for details.
+See `docs/TOWN.md` and `docs/MAYOR.md` for details.
 
 ### Crew Members 👤
 
-Your personal workspace within a rig. Where you do hands-on work.
+Your personal workspace within the project. Where you do hands-on work.
 
 ### Polecats 🦨
 
