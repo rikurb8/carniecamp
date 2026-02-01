@@ -8,6 +8,9 @@ The `mayor` command provides project oversight and planning tools for your Borde
 # Start planning a new epic
 bt mayor new-epic
 
+# Alias
+bt mayor plan-epic
+
 # Plan with an initial idea
 bt mayor new-epic --title "User authentication"
 
@@ -22,28 +25,46 @@ bt mayor review --all
 
 ### `mayor new-epic`
 
-Spawns an interactive AI session to help you plan, refine, and create a new epic with tasks.
+Spawns an interactive AI session in tmux to help you plan, refine, and create a new epic with tasks.
+
+Alias: `mayor plan-epic`
 
 **What it does:**
 
-1. Asks clarifying questions about scope, goals, and constraints
-2. Helps break down the work into actionable tasks
-3. Identifies dependencies between tasks
-4. Suggests priorities (P0-P4)
-5. Creates the epic and tasks using `bd` commands
+1. Creates a tmux session with the AI tool (claude or opencode)
+2. Asks clarifying questions about scope, goals, and constraints
+3. Helps break down the work into actionable tasks
+4. Identifies dependencies between tasks
+5. Suggests priorities (P0-P4)
+6. Creates the epic and tasks using `bd` commands
 
 **Flags:**
 
 - `--title, -t` - Initial title or idea for the epic
 - `--tool` - Override planning tool (`claude` or `opencode`)
 
+**Tmux Session:**
+
+The session runs in tmux, so you can:
+- Detach with `Ctrl+B, D` and return later
+- Reattach with `tmux attach -t bt-epic-planning`
+- The session persists even if your terminal disconnects
+
+**Requirements:**
+
+- `tmux` must be installed
+- `claude` or `opencode` must be installed
+
 **Configuration (town.yml):**
 
 ```yaml
 mayor:
-  planning_tool: claude  # or opencode
+  model: openai/gpt-5.2-codex
+  planning_tool: opencode  # or claude
   planning_prompt_file: .bordertown/prompts/epic-planning.md  # optional custom prompt
 ```
+
+Model values use the `<provider>/<model>` format (e.g., `openai/gpt-5.2-codex`).
 
 **Custom Prompts:**
 

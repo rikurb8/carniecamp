@@ -11,9 +11,9 @@ const (
 	TownConfigFile      = "town.yml"
 	CurrentVersion      = 1
 	DefaultRigsDir      = "./rigs"
-	DefaultMayorModel   = "claude-sonnet"
-	DefaultAgentModel   = "claude-haiku"
-	DefaultPlanningTool = "claude"
+	DefaultMayorModel   = "openai/gpt-5.2-codex"
+	DefaultAgentModel   = "openai/gpt-5.2-codex"
+	DefaultPlanningTool = "opencode"
 )
 
 type TownConfig struct {

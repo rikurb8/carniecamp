@@ -26,7 +26,7 @@ func TestParseTool(t *testing.T) {
 	}
 }
 
-func TestBuildClaudeCmd(t *testing.T) {
+func TestBuildClaudeArgs(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     Options
@@ -35,15 +35,24 @@ func TestBuildClaudeCmd(t *testing.T) {
 		{
 			name:     "no options",
 			opts:     Options{Tool: ToolClaude},
-			wantArgs: []string{},
+			wantArgs: []string{"claude"},
 		},
 		{
-			name: "with prompt",
+			name: "with prompt non-interactive",
 			opts: Options{
 				Tool:   ToolClaude,
 				Prompt: "hello world",
 			},
-			wantArgs: []string{"--print", "hello world"},
+			wantArgs: []string{"claude", "--print", "hello world"},
+		},
+		{
+			name: "with prompt interactive",
+			opts: Options{
+				Tool:        ToolClaude,
+				Prompt:      "hello world",
+				Interactive: true,
+			},
+			wantArgs: []string{"claude"},
 		},
 		{
 			name: "with system prompt",
@@ -51,7 +60,7 @@ func TestBuildClaudeCmd(t *testing.T) {
 				Tool:         ToolClaude,
 				SystemPrompt: "You are a helpful assistant",
 			},
-			wantArgs: []string{"--system-prompt", "You are a helpful assistant"},
+			wantArgs: []string{"claude", "--system-prompt", "You are a helpful assistant"},
 		},
 		{
 			name: "with both prompts",
@@ -60,21 +69,25 @@ func TestBuildClaudeCmd(t *testing.T) {
 				SystemPrompt: "system",
 				Prompt:       "user",
 			},
-			wantArgs: []string{"--system-prompt", "system", "--print", "user"},
+			wantArgs: []string{"claude", "--system-prompt", "system", "--print", "user"},
+		},
+		{
+			name: "with both prompts interactive",
+			opts: Options{
+				Tool:         ToolClaude,
+				SystemPrompt: "system",
+				Prompt:       "user",
+				Interactive:  true,
+			},
+			wantArgs: []string{"claude", "--system-prompt", "system"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := buildClaudeCmd(tt.opts)
-			if cmd.Path == "" && len(cmd.Args) > 0 {
-				// exec.Command sets Args[0] to the command name
-				t.Log("Command built successfully")
-			}
-			// Check args (skip Args[0] which is the command name)
-			gotArgs := cmd.Args[1:]
+			gotArgs := buildClaudeArgs(tt.opts)
 			if len(gotArgs) != len(tt.wantArgs) {
-				t.Errorf("got %d args, want %d", len(gotArgs), len(tt.wantArgs))
+				t.Errorf("got %d args %v, want %d args %v", len(gotArgs), gotArgs, len(tt.wantArgs), tt.wantArgs)
 				return
 			}
 			for i, arg := range gotArgs {
@@ -86,7 +99,7 @@ func TestBuildClaudeCmd(t *testing.T) {
 	}
 }
 
-func TestBuildOpencodeCmd(t *testing.T) {
+func TestBuildOpencodeArgs(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     Options
@@ -95,30 +108,88 @@ func TestBuildOpencodeCmd(t *testing.T) {
 		{
 			name:     "no options",
 			opts:     Options{Tool: ToolOpencode},
-			wantArgs: []string{},
+			wantArgs: []string{"opencode"},
 		},
 		{
-			name: "with prompt",
+			name: "with prompt non-interactive",
 			opts: Options{
 				Tool:   ToolOpencode,
 				Prompt: "hello world",
 			},
-			wantArgs: []string{"-p", "hello world"},
+			wantArgs: []string{"opencode", "-p", "hello world"},
+		},
+		{
+			name: "with prompt interactive",
+			opts: Options{
+				Tool:        ToolOpencode,
+				Prompt:      "hello world",
+				Interactive: true,
+			},
+			wantArgs: []string{"opencode"},
+		},
+		{
+			name: "with system prompt",
+			opts: Options{
+				Tool:         ToolOpencode,
+				SystemPrompt: "system",
+			},
+			wantArgs: []string{"opencode", "--prompt", "system"},
+		},
+		{
+			name: "with system prompt interactive",
+			opts: Options{
+				Tool:         ToolOpencode,
+				SystemPrompt: "system",
+				Prompt:       "hello world",
+				Interactive:  true,
+			},
+			wantArgs: []string{"opencode", "--prompt", "system"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := buildOpencodeCmd(tt.opts)
-			gotArgs := cmd.Args[1:]
+			gotArgs := buildOpencodeArgs(tt.opts)
 			if len(gotArgs) != len(tt.wantArgs) {
-				t.Errorf("got %d args, want %d", len(gotArgs), len(tt.wantArgs))
+				t.Errorf("got %d args %v, want %d args %v", len(gotArgs), gotArgs, len(tt.wantArgs), tt.wantArgs)
 				return
 			}
 			for i, arg := range gotArgs {
 				if arg != tt.wantArgs[i] {
 					t.Errorf("arg[%d] = %q, want %q", i, arg, tt.wantArgs[i])
 				}
+			}
+		})
+	}
+}
+
+func TestBuildToolCommand(t *testing.T) {
+	tests := []struct {
+		name      string
+		opts      Options
+		wantFirst string
+	}{
+		{
+			name:      "claude tool",
+			opts:      Options{Tool: ToolClaude},
+			wantFirst: "claude",
+		},
+		{
+			name:      "opencode tool",
+			opts:      Options{Tool: ToolOpencode},
+			wantFirst: "opencode",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildToolCommand(tt.opts)
+			if len(got) == 0 {
+				t.Error("expected non-empty command")
+				return
+			}
+			if got[0] != tt.wantFirst {
+				t.Errorf("first arg = %q, want %q", got[0], tt.wantFirst)
 			}
 		})
 	}

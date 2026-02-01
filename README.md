@@ -6,6 +6,11 @@
 
 Bordertown is a reliable, portable agent orchestration system.
 
+## CLI
+
+- `bordertown status` shows project details and beads summary
+- `bordertown dashboard` launches the full-screen beads dashboard
+
 ### Goal
 
 Create a environment for:

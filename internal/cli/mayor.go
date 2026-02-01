@@ -163,9 +163,10 @@ func newMayorNewEpicCommand() *cobra.Command {
 	var tool string
 
 	cmd := &cobra.Command{
-		Use:   "new-epic",
-		Short: "Start a planning session for a new epic",
-		Long:  "Spawns an AI session to help plan, refine, and create a new epic with tasks.",
+		Use:     "new-epic",
+		Aliases: []string{"plan-epic"},
+		Short:   "Start a planning session for a new epic",
+		Long:    "Spawns an AI session to help plan, refine, and create a new epic with tasks.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -175,11 +176,15 @@ func newMayorNewEpicCommand() *cobra.Command {
 			// Try to load town config for tool preference and context
 			var townCfg *config.TownConfig
 			planningTool := config.DefaultPlanningTool
+			model := config.DefaultMayorModel
 			configPath := filepath.Join(cwd, config.TownConfigFile)
 			if cfg, err := config.LoadTownConfig(configPath); err == nil {
 				townCfg = cfg
 				if townCfg.Mayor.PlanningTool != "" {
 					planningTool = townCfg.Mayor.PlanningTool
+				}
+				if townCfg.Mayor.Model != "" {
+					model = townCfg.Mayor.Model
 				}
 			}
 
@@ -189,6 +194,12 @@ func newMayorNewEpicCommand() *cobra.Command {
 			}
 
 			selectedTool := session.ParseTool(planningTool)
+			model = session.NormalizeModel(selectedTool, model)
+
+			// Check if tmux is available
+			if !session.TmuxAvailable() {
+				return fmt.Errorf("tmux is not installed or not in PATH")
+			}
 
 			// Check if tool is available
 			if !session.Available(selectedTool) {
@@ -207,15 +218,25 @@ func newMayorNewEpicCommand() *cobra.Command {
 			systemPrompt := prompts.BuildSystemPromptWithBase(ctx, basePrompt)
 
 			// Build the session options
+			sessionName := "bt-epic-planning"
 			opts := session.Options{
 				Tool:         selectedTool,
+				Model:        model,
 				SystemPrompt: systemPrompt,
 				Prompt:       prompts.EpicPlanningInitialPrompt(title),
 				WorkDir:      cwd,
 				Interactive:  true,
+				SessionName:  sessionName,
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Starting epic planning session with %s...\n\n", selectedTool)
+			spawnCommand, err := session.SpawnCommand(opts)
+			if err != nil {
+				return fmt.Errorf("build spawn command: %w", err)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Command: %s\n", spawnCommand)
+			fmt.Fprintf(cmd.OutOrStdout(), "Starting epic planning session with %s in tmux...\n", selectedTool)
+			fmt.Fprintf(cmd.OutOrStdout(), "Session: %s (reattach with: tmux attach -t %s)\n\n", sessionName, sessionName)
 
 			return session.Spawn(opts)
 		},

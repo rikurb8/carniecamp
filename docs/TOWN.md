@@ -32,10 +32,12 @@ name: my-workspace
 description: "Optional description"
 rigs_dir: ./rigs
 mayor:
-  model: claude-sonnet
+  model: openai/gpt-5.2-codex
 defaults:
-  agent_model: claude-haiku
+  agent_model: openai/gpt-5.2-codex
 ```
+
+Model values use the `<provider>/<model>` format (e.g., `openai/gpt-5.2-codex`).
 
 ### Fields
 
@@ -45,8 +47,8 @@ defaults:
 | `name` | Workspace name | Directory name |
 | `description` | What this workspace is for | (empty) |
 | `rigs_dir` | Where project repos live | `./rigs` |
-| `mayor.model` | Model for mayor commands | `claude-sonnet` |
-| `defaults.agent_model` | Default model for agents | `claude-haiku` |
+| `mayor.model` | Model for mayor commands | `openai/gpt-5.2-codex` |
+| `defaults.agent_model` | Default model for agents | `openai/gpt-5.2-codex` |
 
 ## Commands
 
