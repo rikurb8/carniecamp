@@ -6,7 +6,7 @@ import (
 )
 
 func availableListHeight(height int) int {
-	listHeight := height - 10
+	listHeight := height - 2
 	if listHeight < 3 {
 		return 3
 	}
@@ -18,9 +18,9 @@ func drawerLayout(totalWidth int, totalHeight int) (drawerWidth int, bodyHeight 
 	if bodyHeight < 3 {
 		bodyHeight = 3
 	}
-	minDrawer := 26
-	maxDrawer := 40
-	drawerWidth = totalWidth / 3
+	minDrawer := 32
+	maxDrawer := 54
+	drawerWidth = totalWidth * 9 / 20
 	if drawerWidth < minDrawer {
 		drawerWidth = minDrawer
 	}

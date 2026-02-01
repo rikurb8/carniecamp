@@ -20,11 +20,10 @@ func (m Model) View() string {
 	}
 
 	navbar := renderDashboardNavbar(inner, styles)
-	stats := renderDashboardStats(inner, styles)
 	body := renderDashboardBody(inner, styles)
 	footer := renderDashboardFooter()
 
-	output := lipgloss.JoinVertical(lipgloss.Left, navbar, stats, body)
+	output := lipgloss.JoinVertical(lipgloss.Left, navbar, body)
 	if m.showHelp {
 		output = renderHelpOverlay(output, inner, styles)
 	}
@@ -46,19 +45,28 @@ func renderDashboardNavbar(m Model, styles dashboardStyles) string {
 		return ""
 	}
 
-	leftSubText := ""
+	// View tabs
+	homeTab := "1 Home"
+	tasksTab := "2 Tasks"
+	if m.activeView == ViewHome {
+		homeTab = styles.viewTabActive.Render(homeTab)
+		tasksTab = styles.viewTabInactive.Render(tasksTab)
+	} else {
+		homeTab = styles.viewTabInactive.Render(homeTab)
+		tasksTab = styles.viewTabActive.Render(tasksTab)
+	}
+	viewTabs := homeTab + " " + tasksTab
+
 	updated := "Stand by..."
 	if m.errMessage != "" {
 		updated = m.errMessage
 	} else if !m.lastUpdated.IsZero() {
 		updated = fmt.Sprintf("Updated %s", m.lastUpdated.Format("15:04:05"))
 	}
-	leftSubText, updated = clampNavbarSegments(width, leftSubText, updated)
-	leftSub := styles.navbarSub.Render(leftSubText)
 	rightSub := styles.navbarMeta.Render(updated)
-	line2 := renderNavbarLine(width, leftSub, rightSub, styles.navbarBar)
+	line := renderNavbarLine(width, viewTabs, rightSub, styles.navbarBar)
 
-	return line2
+	return line
 }
 
 func renderNavbarLine(width int, left string, right string, style lipgloss.Style) string {
@@ -110,7 +118,129 @@ func renderDashboardStats(m Model, styles dashboardStyles) string {
 }
 
 func renderDashboardBody(m Model, styles dashboardStyles) string {
-	return renderMasterDetail(m, styles)
+	if m.activeView == ViewHome {
+		return renderHomeView(m, styles)
+	}
+	stats := renderDashboardStats(m, styles)
+	tasks := renderMasterDetail(m, styles)
+	return lipgloss.JoinVertical(lipgloss.Left, stats, tasks)
+}
+
+func renderHomeView(m Model, styles dashboardStyles) string {
+	width := m.width
+	height := m.height - 2
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+
+	// Styles
+	tentColor := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	goldColor := lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true)
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true)
+	welcomeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
+	tipStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("229"))
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	starStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Bold(true)
+
+	// Get spinner views
+	getSpinner := func(i int) string {
+		if i < len(m.homeSpinners) {
+			return m.homeSpinners[i].View()
+		}
+		return "*"
+	}
+
+	// Build spinners row content with fixed structure
+	s0, s1, s2, s3, s4, s5 := getSpinner(0), getSpinner(1), getSpinner(2), getSpinner(3), getSpinner(4), getSpinner(5)
+
+	// ASCII tent art - plain text, will be colored
+	tentLines := []string{
+		"      *     +     *      ",
+		"           /\\           ",
+		"          /||\\          ",
+		"         /||||\\         ",
+		"        /||||||\\        ",
+		"       /||||||||\\       ",
+		"      /||||||||||\\      ",
+		"     [||||||||||||]     ",
+		"     [    |  |    ]     ",
+		"     [----+--+----]     ",
+		"                         ",
+		"    STEP RIGHT UP!       ",
+	}
+
+	// Build left panel - use lipgloss box style
+	var tentArtLines []string
+	for i, line := range tentLines {
+		si := i % 6
+		ls := getSpinner(si)
+		rs := getSpinner((si + 3) % 6)
+
+		// Color the tent characters
+		var colored strings.Builder
+		for _, ch := range line {
+			switch ch {
+			case '*', '+':
+				colored.WriteString(starStyle.Render(string(ch)))
+			case '/', '\\', '[', ']', '|', '-':
+				colored.WriteString(tentColor.Render(string(ch)))
+			default:
+				colored.WriteString(string(ch))
+			}
+		}
+		tentArtLines = append(tentArtLines, ls+" "+colored.String()+" "+rs)
+	}
+
+	// Top and bottom spinner rows
+	topSpinners := s0 + "  " + s1 + "  " + s2 + "  " + s3 + "  " + s4 + "  " + s5
+	botSpinners := s5 + "  " + s4 + "  " + s3 + "  " + s2 + "  " + s1 + "  " + s0
+
+	leftContent := []string{topSpinners, ""}
+	leftContent = append(leftContent, tentArtLines...)
+	leftContent = append(leftContent, "", botSpinners)
+
+	leftBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("220")).
+		Padding(1, 2).
+		Render(lipgloss.JoinVertical(lipgloss.Center, leftContent...))
+
+	// Build right panel: Welcome & Tips
+	rightLines := []string{
+		titleStyle.Render("╔═════════════════════════════╗"),
+		titleStyle.Render("║") + welcomeStyle.Render("   WELCOME & QUICK TIPS   ") + titleStyle.Render("║"),
+		titleStyle.Render("╚═════════════════════════════╝"),
+		"",
+		goldColor.Render("       * CARNIE CAMP *"),
+		dimStyle.Render("  Your carnival of tasks awaits"),
+		"",
+		goldColor.Render("  ┌───────────────────────┐"),
+		goldColor.Render("  │") + tipStyle.Render("     NAVIGATION       ") + goldColor.Render("│"),
+		goldColor.Render("  ├───────────────────────┤"),
+		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("1") + tipStyle.Render(" Home  ") + keyStyle.Render("2") + tipStyle.Render(" Tasks    ") + goldColor.Render("│"),
+		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("q") + tipStyle.Render(" Quit  ") + keyStyle.Render("?") + tipStyle.Render(" Help     ") + goldColor.Render("│"),
+		goldColor.Render("  └───────────────────────┘"),
+		"",
+		goldColor.Render("  ┌───────────────────────┐"),
+		goldColor.Render("  │") + tipStyle.Render("    TASK CONTROLS     ") + goldColor.Render("│"),
+		goldColor.Render("  ├───────────────────────┤"),
+		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("j/k") + tipStyle.Render(" Move up/down   ") + goldColor.Render("│"),
+		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("tab") + tipStyle.Render(" Switch columns ") + goldColor.Render("│"),
+		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("</>") + tipStyle.Render(" Collapse/expand") + goldColor.Render("│"),
+		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("r") + tipStyle.Render("   Refresh        ") + goldColor.Render("│"),
+		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("o") + tipStyle.Render("   Improver       ") + goldColor.Render("│"),
+		goldColor.Render("  └───────────────────────┘"),
+		"",
+		starStyle.Render(" *") + dimStyle.Render(" The show is about to begin! ") + starStyle.Render("*"),
+	}
+
+	rightPanel := lipgloss.JoinVertical(lipgloss.Left, rightLines...)
+
+	// Join panels
+	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, "    ", rightPanel)
+
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, combined)
 }
 
 func renderMasterDetail(m Model, styles dashboardStyles) string {
@@ -143,7 +273,7 @@ func renderActiveDrawer(m Model, width int, height int, listHeight int, showSumm
 	borderStyle := styles.paneBorderActive
 	entries := buildDrawerEntries(activeColumn, m.collapsed)
 	title := fmt.Sprintf("%s (%d)", activeColumn.Title, len(entries))
-	rows = append(rows, renderPaneRule(innerWidth, borderStyle))
+	rows = append(rows, renderPaneTopRule(innerWidth, borderStyle))
 	if len(rows) < height {
 		rows = append(rows, renderPaneHeaderLine(title, innerWidth, styles.columnTitle, borderStyle))
 	}
@@ -171,7 +301,7 @@ func renderActiveDrawer(m Model, width int, height int, listHeight int, showSumm
 		}
 	}
 	if len(rows) < height {
-		rows = append(rows, renderPaneRule(innerWidth, borderStyle))
+		rows = append(rows, renderPaneBottomRule(innerWidth, borderStyle))
 	}
 
 	for len(rows) < height {
@@ -181,11 +311,19 @@ func renderActiveDrawer(m Model, width int, height int, listHeight int, showSumm
 	return lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 }
 
-func renderPaneRule(innerWidth int, borderStyle lipgloss.Style) string {
+func renderPaneTopRule(innerWidth int, borderStyle lipgloss.Style) string {
 	if innerWidth < 1 {
 		return ""
 	}
-	line := "+" + strings.Repeat("-", innerWidth) + "+"
+	line := "┌" + strings.Repeat("─", innerWidth) + "┐"
+	return borderStyle.Render(line)
+}
+
+func renderPaneBottomRule(innerWidth int, borderStyle lipgloss.Style) string {
+	if innerWidth < 1 {
+		return ""
+	}
+	line := "└" + strings.Repeat("─", innerWidth) + "┘"
 	return borderStyle.Render(line)
 }
 
@@ -198,7 +336,7 @@ func renderPaneHeaderRow(text string, innerWidth int, textStyle lipgloss.Style, 
 	leftPad := pad / 2
 	rightPad := pad - leftPad
 	content := strings.Repeat(" ", leftPad) + textStyle.Render(text) + strings.Repeat(" ", rightPad)
-	return borderStyle.Render("|") + content + borderStyle.Render("|")
+	return borderStyle.Render("│") + content + borderStyle.Render("│")
 }
 
 func renderPaneHeaderLine(text string, innerWidth int, textStyle lipgloss.Style, borderStyle lipgloss.Style) string {
@@ -208,7 +346,7 @@ func renderPaneHeaderLine(text string, innerWidth int, textStyle lipgloss.Style,
 		pad = 0
 	}
 	content := textStyle.Render(text) + strings.Repeat(" ", pad)
-	return borderStyle.Render("|") + content + borderStyle.Render("|")
+	return borderStyle.Render("│") + content + borderStyle.Render("│")
 }
 
 func renderPaneRow(text string, innerWidth int, textStyle lipgloss.Style, borderStyle lipgloss.Style) string {
@@ -218,12 +356,12 @@ func renderPaneRow(text string, innerWidth int, textStyle lipgloss.Style, border
 		pad = 0
 	}
 	content := textStyle.Render(text) + strings.Repeat(" ", pad)
-	return borderStyle.Render("|") + content + borderStyle.Render("|")
+	return borderStyle.Render("│") + content + borderStyle.Render("│")
 }
 
 func renderPaneRawRow(text string, innerWidth int, borderStyle lipgloss.Style) string {
 	content := lipgloss.NewStyle().Width(innerWidth).Render(text)
-	return borderStyle.Render("|") + content + borderStyle.Render("|")
+	return borderStyle.Render("│") + content + borderStyle.Render("│")
 }
 
 func renderDetailPanel(m Model, width int, height int, styles dashboardStyles) string {
@@ -295,7 +433,7 @@ func renderPanel(title string, lines []string, width int, height int, styles das
 }
 
 func renderDashboardFooter() string {
-	return "h/? help  o improve  tab switch  j/k move  left/right collapse  r refresh  q quit"
+	return "1/2 views  h/? help  o improve  tab switch  j/k move  left/right collapse  r refresh  q quit"
 }
 
 func renderHelpOverlay(base string, m Model, styles dashboardStyles) string {

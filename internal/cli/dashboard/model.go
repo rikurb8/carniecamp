@@ -4,7 +4,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/rikurb8/carnie/internal/cli/bd"
 )
 
@@ -49,11 +51,19 @@ type issueColumn struct {
 	LevelByID  map[string]int
 }
 
+type ViewType int
+
+const (
+	ViewHome ViewType = iota
+	ViewTasks
+)
+
 type Model struct {
 	width        int
 	height       int
 	columns      []issueColumn
 	activeColumn int
+	activeView   ViewType
 	refresh      time.Duration
 	limit        int
 	lastUpdated  time.Time
@@ -64,6 +74,7 @@ type Model struct {
 	improveInput textinput.Model
 	collapsed    map[string]bool
 	lists        []list.Model
+	homeSpinners []spinner.Model
 }
 
 type drawerEntry struct {
@@ -81,6 +92,24 @@ func NewModel(refresh time.Duration, limit int) Model {
 	futureList := newDrawerList(delegate)
 	closedList := newDrawerList(delegate)
 
+	// Multiple spinner styles for the border
+	spinnerTypes := []spinner.Spinner{
+		spinner.Dot,
+		spinner.Globe,
+		spinner.Moon,
+		spinner.Monkey,
+		spinner.Line,
+		spinner.Jump,
+	}
+	colors := []string{"196", "220", "214", "226", "202", "198"}
+	spinners := make([]spinner.Model, len(spinnerTypes))
+	for i, st := range spinnerTypes {
+		s := spinner.New()
+		s.Spinner = st
+		s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(colors[i]))
+		spinners[i] = s
+	}
+
 	return Model{
 		refresh:      refresh,
 		limit:        limit,
@@ -90,6 +119,7 @@ func NewModel(refresh time.Duration, limit int) Model {
 			{Title: "Future Work"},
 			{Title: "Completed Work"},
 		},
-		lists: []list.Model{futureList, closedList},
+		lists:        []list.Model{futureList, closedList},
+		homeSpinners: spinners,
 	}
 }

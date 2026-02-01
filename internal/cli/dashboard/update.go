@@ -4,12 +4,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rikurb8/carnie/internal/cli/agents"
 )
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(loadDashboardDataCmd(m.limit), m.tickCmd())
+	cmds := []tea.Cmd{loadDashboardDataCmd(m.limit), m.tickCmd()}
+	for i := range m.homeSpinners {
+		cmds = append(cmds, m.homeSpinners[i].Tick)
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -68,6 +73,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "r":
 			return m, loadDashboardDataCmd(m.limit)
+		case "1":
+			m.activeView = ViewHome
+			return m, nil
+		case "2":
+			m.activeView = ViewTasks
+			return m, nil
 		}
 
 		if len(m.lists) > 0 {
@@ -98,6 +109,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.errMessage = ""
 		return m, nil
+	case spinner.TickMsg:
+		var cmds []tea.Cmd
+		for i := range m.homeSpinners {
+			var cmd tea.Cmd
+			m.homeSpinners[i], cmd = m.homeSpinners[i].Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 	}
 
 	return m, nil

@@ -35,6 +35,8 @@ type dashboardStyles struct {
 	navbarTitle        lipgloss.Style
 	navbarMeta         lipgloss.Style
 	navbarSub          lipgloss.Style
+	viewTabActive      lipgloss.Style
+	viewTabInactive    lipgloss.Style
 	tentTop            lipgloss.Style
 	tentPost           lipgloss.Style
 	tentBase           lipgloss.Style
@@ -44,14 +46,14 @@ type dashboardStyles struct {
 
 func newDashboardStyles() dashboardStyles {
 	border := lipgloss.Border{
-		Top:         "-",
-		Bottom:      "-",
-		Left:        "|",
-		Right:       "|",
-		TopLeft:     "+",
-		TopRight:    "+",
-		BottomLeft:  "+",
-		BottomRight: "+",
+		Top:         "─",
+		Bottom:      "─",
+		Left:        "│",
+		Right:       "│",
+		TopLeft:     "┌",
+		TopRight:    "┐",
+		BottomLeft:  "└",
+		BottomRight: "┘",
 	}
 
 	return dashboardStyles{
@@ -87,6 +89,8 @@ func newDashboardStyles() dashboardStyles {
 		navbarTitle:        lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Bold(true),
 		navbarMeta:         lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true),
 		navbarSub:          lipgloss.NewStyle().Foreground(lipgloss.Color("229")),
+		viewTabActive:      lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Background(lipgloss.Color("196")).Bold(true).Padding(0, 1),
+		viewTabInactive:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Padding(0, 1),
 		tentTop:            lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
 		tentPost:           lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Background(lipgloss.Color("52")).Bold(true),
 		tentBase:           lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
