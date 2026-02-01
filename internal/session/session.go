@@ -108,7 +108,7 @@ func normalizeOptions(opts Options) (Options, error) {
 	}
 
 	if opts.SessionName == "" {
-		opts.SessionName = fmt.Sprintf("bt-%s-%d", opts.Tool, time.Now().Unix())
+		opts.SessionName = fmt.Sprintf("cn-%s-%d", opts.Tool, time.Now().Unix())
 	}
 
 	return opts, nil

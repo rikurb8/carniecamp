@@ -11,9 +11,9 @@ func TestLoadIssuesFromFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "issues.jsonl")
 
-	content := `{"id":"bt-001","title":"Test issue","status":"open","priority":2,"issue_type":"task"}
-{"id":"bt-002","title":"Test epic","status":"open","priority":1,"issue_type":"epic"}
-{"id":"bt-003","title":"Closed task","status":"closed","priority":2,"issue_type":"task"}`
+	content := `{"id":"cn-001","title":"Test issue","status":"open","priority":2,"issue_type":"task"}
+{"id":"cn-002","title":"Test epic","status":"open","priority":1,"issue_type":"epic"}
+{"id":"cn-003","title":"Closed task","status":"closed","priority":2,"issue_type":"task"}`
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("write test file: %v", err)
@@ -29,8 +29,8 @@ func TestLoadIssuesFromFile(t *testing.T) {
 	}
 
 	// Check first issue
-	if issues[0].ID != "bt-001" {
-		t.Errorf("expected id bt-001, got %s", issues[0].ID)
+	if issues[0].ID != "cn-001" {
+		t.Errorf("expected id cn-001, got %s", issues[0].ID)
 	}
 	if !issues[0].IsOpen() {
 		t.Error("expected issue to be open")

@@ -1,57 +1,48 @@
-# Bordertown
+# Carnie
 
-**Sane agent orchestration**
+**Step right up for sane agent orchestration**
 
-## Overview
+## Welcome to the Big Top
 
-Bordertown is a reliable, portable agent orchestration system installed inside your project.
+Carnie is a reliable, portable agent orchestration system installed inside your project. It brings a crew of helpers into your repo, keeps their work tracked, and makes planning feel like a well-run show.
 
-## CLI
+## Quick Start
 
-- `bordertown status` shows project details and beads summary
-- `bordertown dashboard` launches the full-screen beads dashboard
+```bash
+carnie camp init
+carnie status
+carnie dashboard
+carnie operator review
+```
 
-### Goal
+## CLI Highlights
 
-Create a environment for:
+- `carnie status` shows project details and beads summary
+- `carnie dashboard` launches the full-screen beads dashboard
+- `carnie operator new-epic` kicks off AI-assisted planning
 
-- Project management
-  - [x] Iterating on project ideas / technical planning
-  - [ ] Creating actionable epics/features/tasks based on plan
-- Implementation
-  - [ ] Have agent implement task
-  - [ ] Have agent(s) implement all available tasks (fully autonomous or human-in-the-loop)
-  - [ ] Drop in to a specific point-in-time/context to do work yourself with Opencode
-- Shipping
-  - [ ] Known best practices for shipping products
-  - [ ] Update / monitoring / debugging
+## Why Carnie?
 
-### What Problem Does This Solve?
-
-| Challenge                      | Bordertown Solution                          |
+| Challenge                      | Carnie Solution                               |
 | ------------------------------ | -------------------------------------------- |
 | Agents lose context on restart | Work persists in git-backed hooks            |
 | Manual agent coordination      | Built-in mailboxes, identities, and handoffs |
-| Easier project management      | Oppinionated way of managing work            |
-| Scary to run YOLO agents       | Bordertown provides safe environment         |
+| Easier project management      | Opinionated way of managing work             |
+| Scary to run YOLO agents       | Carnie runs a safer show                     |
 
-## Core Concepts
+## Core Cast
 
-NB: these names and concepts are inspired by the original gastown and more of a placeholder, adjust when needed. Especially better Bordertowny names are needed.
+### The Operator 🎛️
 
-### The Mayor 🎩
+Your ringmaster for AI planning. The Operator is an Opencode instance with full context about your workspace, projects, and agents. **Start here**—tell the Operator what you want to accomplish.
 
-Your primary AI coordinator. The Mayor is a Opencode instance with full context about your workspace, projects, and agents. **Start here** - just tell the Mayor what you want to accomplish.
+### Camp 🏕️
 
-### Town 🏘️
-
-Your project-local workspace. Initialize it with `bordertown town init` to create `town.yml` inside the repo.
+Your project-local workspace. Initialize it with `carnie camp init` to create `camp.yml` inside the repo.
 
 ### Beads 📌
 
 Work items tracked by `bd` inside the project repo.
-
-See `docs/TOWN.md` and `docs/MAYOR.md` for details.
 
 ### Crew Members 👤
 
@@ -69,13 +60,15 @@ Git worktree-based persistent storage for agent work. Survives crashes and resta
 
 Work tracking units. Bundle multiple beads that get assigned to agents.
 
+See `docs/CAMP.md` and `docs/OPERATOR.md` for details.
+
 ## Installation
 
 - TODO
 
-### References / inspiration
+## References / inspiration
 
-- Bordertown is heavily inspired by [gastown](https://github.com/steveyegge/gastown)
+- Carnie is heavily inspired by [gastown](https://github.com/steveyegge/gastown)
 - Git-based task management handled by [beads](https://github.com/steveyegge/beads)
 - All execution is done using [dagger](https://github.com/dagger/dagger)
 - Agent by [opencode](https://github.com/anomalyco/opencode)

@@ -23,7 +23,7 @@ func setupBeadsDir(t *testing.T, content string) string {
 	return dir
 }
 
-func TestMayorReviewEmptyBeads(t *testing.T) {
+func TestOperatorReviewEmptyBeads(t *testing.T) {
 	dir := setupBeadsDir(t, "")
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
@@ -33,22 +33,22 @@ func TestMayorReviewEmptyBeads(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review"})
+	root.SetArgs([]string{"operator", "review"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
 	result := output.String()
-	if !strings.Contains(result, "Mayor Review") {
-		t.Error("expected output to contain 'Mayor Review'")
+	if !strings.Contains(result, "Operator Review") {
+		t.Error("expected output to contain 'Operator Review'")
 	}
 	if !strings.Contains(result, "No epics found") {
 		t.Error("expected output to contain 'No epics found'")
 	}
 }
 
-func TestMayorReviewSingleEpic(t *testing.T) {
+func TestOperatorReviewSingleEpic(t *testing.T) {
 	content := `{"id":"epic-1","title":"Test Epic","status":"open","issue_type":"epic","description":"A test epic with enough description to pass the length check for planning analysis"}
 {"id":"task-1","title":"Task One","status":"open","issue_type":"task"}`
 
@@ -61,7 +61,7 @@ func TestMayorReviewSingleEpic(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review"})
+	root.SetArgs([]string{"operator", "review"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -76,7 +76,7 @@ func TestMayorReviewSingleEpic(t *testing.T) {
 	}
 }
 
-func TestMayorReviewEpicWithTasks(t *testing.T) {
+func TestOperatorReviewEpicWithTasks(t *testing.T) {
 	// Epic depends on task-1 (task-1 blocks the epic)
 	content := `{"id":"epic-1","title":"Test Epic","status":"open","issue_type":"epic","description":"A test epic","dependencies":[{"issue_id":"epic-1","depends_on_id":"task-1","type":"blocks"}]}
 {"id":"task-1","title":"Child Task","status":"open","issue_type":"task"}`
@@ -90,7 +90,7 @@ func TestMayorReviewEpicWithTasks(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review"})
+	root.SetArgs([]string{"operator", "review"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -108,7 +108,7 @@ func TestMayorReviewEpicWithTasks(t *testing.T) {
 	}
 }
 
-func TestMayorReviewEpicNeedsPlanning(t *testing.T) {
+func TestOperatorReviewEpicNeedsPlanning(t *testing.T) {
 	// Epic with no tasks should show needs planning
 	content := `{"id":"epic-1","title":"Empty Epic","status":"open","issue_type":"epic","description":"Short"}`
 
@@ -121,7 +121,7 @@ func TestMayorReviewEpicNeedsPlanning(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review"})
+	root.SetArgs([]string{"operator", "review"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -133,7 +133,7 @@ func TestMayorReviewEpicNeedsPlanning(t *testing.T) {
 	}
 }
 
-func TestMayorReviewOrphanIssues(t *testing.T) {
+func TestOperatorReviewOrphanIssues(t *testing.T) {
 	// Task with no epic parent
 	content := `{"id":"task-1","title":"Orphan Task","status":"open","issue_type":"task"}`
 
@@ -146,7 +146,7 @@ func TestMayorReviewOrphanIssues(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review"})
+	root.SetArgs([]string{"operator", "review"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -161,7 +161,7 @@ func TestMayorReviewOrphanIssues(t *testing.T) {
 	}
 }
 
-func TestMayorReviewHidesClosedByDefault(t *testing.T) {
+func TestOperatorReviewHidesClosedByDefault(t *testing.T) {
 	content := `{"id":"epic-1","title":"Closed Epic","status":"closed","issue_type":"epic"}
 {"id":"epic-2","title":"Open Epic","status":"open","issue_type":"epic","description":"A long enough description for the planning check"}`
 
@@ -174,7 +174,7 @@ func TestMayorReviewHidesClosedByDefault(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review"})
+	root.SetArgs([]string{"operator", "review"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -189,7 +189,7 @@ func TestMayorReviewHidesClosedByDefault(t *testing.T) {
 	}
 }
 
-func TestMayorReviewShowAllFlag(t *testing.T) {
+func TestOperatorReviewShowAllFlag(t *testing.T) {
 	content := `{"id":"epic-1","title":"Closed Epic","status":"closed","issue_type":"epic"}
 {"id":"epic-2","title":"Open Epic","status":"open","issue_type":"epic"}`
 
@@ -202,7 +202,7 @@ func TestMayorReviewShowAllFlag(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review", "--all"})
+	root.SetArgs([]string{"operator", "review", "--all"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -217,7 +217,7 @@ func TestMayorReviewShowAllFlag(t *testing.T) {
 	}
 }
 
-func TestMayorReviewNoBeadsDirectory(t *testing.T) {
+func TestOperatorReviewNoBeadsDirectory(t *testing.T) {
 	dir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
@@ -227,7 +227,7 @@ func TestMayorReviewNoBeadsDirectory(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"mayor", "review"})
+	root.SetArgs([]string{"operator", "review"})
 
 	err := root.Execute()
 	if err == nil {

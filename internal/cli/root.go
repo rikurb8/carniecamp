@@ -13,20 +13,20 @@ var cfgFile string
 
 func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:     "bordertown",
-		Aliases: []string{"bt"},
-		Short:   "Bordertown agent orchestration",
-		Long:    "Bordertown is a reliable, portable agent orchestration system.",
+		Use:     "carnie",
+		Aliases: []string{"cn"},
+		Short:   "Carnie agent orchestration",
+		Long:    "Carnie is a reliable, portable agent orchestration system.",
 	}
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.bordertown.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.carnie.yaml)")
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.AddCommand(newDummyCommand())
 	rootCmd.AddCommand(newStatusCommand())
 	rootCmd.AddCommand(newDashboardCommand())
-	rootCmd.AddCommand(newTownCommand())
-	rootCmd.AddCommand(newMayorCommand())
+	rootCmd.AddCommand(newCampCommand())
+	rootCmd.AddCommand(newOperatorCommand())
 
 	return rootCmd
 }
@@ -47,10 +47,10 @@ func initConfig() {
 
 		viper.AddConfigPath(home)
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".bordertown")
+		viper.SetConfigName(".carnie")
 	}
 
-	viper.SetEnvPrefix("bt")
+	viper.SetEnvPrefix("cn")
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err == nil {

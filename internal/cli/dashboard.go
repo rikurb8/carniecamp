@@ -3,25 +3,37 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/rikurb8/carnie/internal/beads"
 	"github.com/spf13/cobra"
 )
 
 type bdIssue struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
-	Priority    int    `json:"priority"`
-	IssueType   string `json:"issue_type"`
-	Owner       string `json:"owner"`
-	UpdatedAt   string `json:"updated_at"`
-	CreatedAt   string `json:"created_at"`
+	ID           string         `json:"id"`
+	Title        string         `json:"title"`
+	Description  string         `json:"description"`
+	Status       string         `json:"status"`
+	Priority     int            `json:"priority"`
+	IssueType    string         `json:"issue_type"`
+	Owner        string         `json:"owner"`
+	UpdatedAt    string         `json:"updated_at"`
+	CreatedAt    string         `json:"created_at"`
+	Dependencies []bdDependency `json:"dependencies,omitempty"`
+}
+
+type bdDependency struct {
+	IssueID     string `json:"issue_id"`
+	DependsOnID string `json:"depends_on_id"`
+	Type        string `json:"type"`
 }
 
 type dashboardData struct {
@@ -39,18 +51,13 @@ type dashboardDataMsg struct {
 
 type dashboardTickMsg struct{}
 
-type dashboardViewMode string
-
-const (
-	viewOverview dashboardViewMode = "overview"
-	viewKanban   dashboardViewMode = "kanban"
-)
-
 type issueColumn struct {
-	Title    string
-	Issues   []bdIssue
-	Selected int
-	Offset   int
+	Title      string
+	Issues     []bdIssue
+	Selected   int
+	Offset     int
+	ParentByID map[string]string
+	LevelByID  map[string]int
 }
 
 type dashboardModel struct {
@@ -64,7 +71,7 @@ type dashboardModel struct {
 	summary      bdStatusSummary
 	errMessage   string
 	showHelp     bool
-	viewMode     dashboardViewMode
+	collapsed    map[string]bool
 }
 
 type dashboardStyles struct {
@@ -84,6 +91,20 @@ type dashboardStyles struct {
 	helpText       lipgloss.Style
 	dimText        lipgloss.Style
 	errorText      lipgloss.Style
+	navbarBar      lipgloss.Style
+	navbarTitle    lipgloss.Style
+	navbarMeta     lipgloss.Style
+	navbarSub      lipgloss.Style
+	tentTop        lipgloss.Style
+	tentPost       lipgloss.Style
+	tentBase       lipgloss.Style
+	tentStripeA    lipgloss.Style
+	tentStripeB    lipgloss.Style
+}
+
+type drawerEntry struct {
+	Issue bdIssue
+	Level int
 }
 
 func newDashboardCommand() *cobra.Command {
@@ -92,7 +113,7 @@ func newDashboardCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "dashboard",
-		Short: "Launch the Bordertown dashboard",
+		Short: "Launch the Carnie dashboard",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			model := newDashboardModel(refresh, limit)
 			program := tea.NewProgram(model, tea.WithAltScreen())
@@ -109,14 +130,12 @@ func newDashboardCommand() *cobra.Command {
 
 func newDashboardModel(refresh time.Duration, limit int) dashboardModel {
 	return dashboardModel{
-		refresh:  refresh,
-		limit:    limit,
-		viewMode: viewOverview,
+		refresh:   refresh,
+		limit:     limit,
+		collapsed: map[string]bool{},
 		columns: []issueColumn{
-			{Title: "Ready"},
-			{Title: "In Progress"},
-			{Title: "Blocked"},
-			{Title: "Closed"},
+			{Title: "Future Work"},
+			{Title: "Completed Work"},
 		},
 	}
 }
@@ -149,30 +168,27 @@ func (m dashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "h", "?":
 			m.showHelp = !m.showHelp
 			return m, nil
-		case "v":
-			m.toggleView()
+		case "left":
+			m.setCollapseForSelected(true)
+			m.ensureVisible()
 			return m, nil
-		case "tab", "right", "l":
-			if m.viewMode == viewKanban {
-				m.activeColumn = (m.activeColumn + 1) % len(m.columns)
-				m.ensureVisible()
-			}
+		case "right":
+			m.setCollapseForSelected(false)
+			m.ensureVisible()
 			return m, nil
-		case "shift+tab", "left":
-			if m.viewMode == viewKanban {
-				m.activeColumn = (m.activeColumn - 1 + len(m.columns)) % len(m.columns)
-				m.ensureVisible()
-			}
+		case "tab", "l":
+			m.activeColumn = (m.activeColumn + 1) % len(m.columns)
+			m.ensureVisible()
+			return m, nil
+		case "shift+tab":
+			m.activeColumn = (m.activeColumn - 1 + len(m.columns)) % len(m.columns)
+			m.ensureVisible()
 			return m, nil
 		case "down", "j":
-			if m.viewMode == viewKanban {
-				m.moveSelection(1)
-			}
+			m.moveSelection(1)
 			return m, nil
 		case "up", "k":
-			if m.viewMode == viewKanban {
-				m.moveSelection(-1)
-			}
+			m.moveSelection(-1)
 			return m, nil
 		case "r":
 			return m, loadDashboardDataCmd(m.limit)
@@ -201,24 +217,26 @@ func (m dashboardModel) View() string {
 	}
 
 	styles := newDashboardStyles()
-	header := renderDashboardHeader(styles)
-	stats := renderDashboardStats(m, styles)
-	body := renderDashboardBody(m, styles)
-	footer := renderDashboardFooter(m, styles)
+	inner := m
+	if m.width > 2 && m.height > 3 {
+		inner.width = m.width - 2
+		inner.height = m.height - 3
+	}
 
-	output := lipgloss.JoinVertical(lipgloss.Left, header, stats, body, footer)
+	navbar := renderDashboardNavbar(inner, styles)
+	header := renderDashboardHeader(styles)
+	stats := renderDashboardStats(inner, styles)
+	body := renderDashboardBody(inner, styles)
+	footer := renderDashboardFooter(inner, styles)
+
+	output := lipgloss.JoinVertical(lipgloss.Left, navbar, header, stats, body, footer)
 	if m.showHelp {
-		output = renderHelpOverlay(output, m, styles)
+		output = renderHelpOverlay(output, inner, styles)
+	}
+	if m.width > 2 && m.height > 2 {
+		return renderTentFrame(output, styles, m.width, m.height)
 	}
 	return output
-}
-
-func (m *dashboardModel) toggleView() {
-	if m.viewMode == viewKanban {
-		m.viewMode = viewOverview
-		return
-	}
-	m.viewMode = viewKanban
 }
 
 func (m dashboardModel) tickCmd() tea.Cmd {
@@ -232,7 +250,8 @@ func (m dashboardModel) tickCmd() tea.Cmd {
 
 func (m *dashboardModel) moveSelection(delta int) {
 	column := &m.columns[m.activeColumn]
-	if len(column.Issues) == 0 {
+	entries := buildDrawerEntries(*column, m.collapsed)
+	if len(entries) == 0 {
 		column.Selected = 0
 		column.Offset = 0
 		return
@@ -242,18 +261,42 @@ func (m *dashboardModel) moveSelection(delta int) {
 	if next < 0 {
 		next = 0
 	}
-	if next >= len(column.Issues) {
-		next = len(column.Issues) - 1
+	if next >= len(entries) {
+		next = len(entries) - 1
 	}
 	column.Selected = next
 	m.ensureVisible()
+}
+
+func (m *dashboardModel) setCollapseForSelected(collapse bool) {
+	if len(m.columns) == 0 {
+		return
+	}
+	column := m.columns[m.activeColumn]
+	entries := buildDrawerEntries(column, m.collapsed)
+	if len(entries) == 0 {
+		return
+	}
+	if column.Selected < 0 || column.Selected >= len(entries) {
+		return
+	}
+	issue := entries[column.Selected].Issue
+	if issue.IssueType != "epic" {
+		return
+	}
+	if collapse {
+		m.collapsed[issue.ID] = true
+		return
+	}
+	delete(m.collapsed, issue.ID)
 }
 
 func (m *dashboardModel) ensureVisible() {
 	height := availableListHeight(m.height)
 	for idx := range m.columns {
 		column := &m.columns[idx]
-		if len(column.Issues) == 0 {
+		entries := buildDrawerEntries(*column, m.collapsed)
+		if len(entries) == 0 {
 			column.Selected = 0
 			column.Offset = 0
 			continue
@@ -262,8 +305,8 @@ func (m *dashboardModel) ensureVisible() {
 		if column.Selected < 0 {
 			column.Selected = 0
 		}
-		if column.Selected >= len(column.Issues) {
-			column.Selected = len(column.Issues) - 1
+		if column.Selected >= len(entries) {
+			column.Selected = len(entries) - 1
 		}
 
 		if column.Selected < column.Offset {
@@ -275,8 +318,8 @@ func (m *dashboardModel) ensureVisible() {
 		if column.Offset < 0 {
 			column.Offset = 0
 		}
-		if column.Offset > len(column.Issues)-1 {
-			column.Offset = len(column.Issues) - 1
+		if column.Offset > len(entries)-1 {
+			column.Offset = len(entries) - 1
 		}
 	}
 }
@@ -284,45 +327,227 @@ func (m *dashboardModel) ensureVisible() {
 func (m *dashboardModel) updateColumns(data dashboardData) {
 	previous := make(map[string]string, len(m.columns))
 	for _, column := range m.columns {
-		if len(column.Issues) == 0 || column.Selected >= len(column.Issues) {
+		selectedID := selectedIssueID(column, m.collapsed)
+		if selectedID == "" {
 			continue
 		}
-		previous[column.Title] = column.Issues[column.Selected].ID
+		previous[column.Title] = selectedID
 	}
 
-	m.columns[0].Issues = data.Ready
-	m.columns[1].Issues = data.InProgress
-	m.columns[2].Issues = data.Blocked
-	m.columns[3].Issues = data.Closed
+	future := append([]bdIssue{}, data.Ready...)
+	future = append(future, data.InProgress...)
+	future = append(future, data.Blocked...)
+
+	orderedFuture, futureParents, futureLevels := orderIssuesWithParents(future)
+	orderedClosed, closedParents, closedLevels := orderIssuesWithParents(data.Closed)
+
+	m.columns[0].Issues = orderedFuture
+	m.columns[0].ParentByID = futureParents
+	m.columns[0].LevelByID = futureLevels
+	m.columns[1].Issues = orderedClosed
+	m.columns[1].ParentByID = closedParents
+	m.columns[1].LevelByID = closedLevels
 
 	for idx := range m.columns {
 		selectedID := previous[m.columns[idx].Title]
-		if selectedID == "" || len(m.columns[idx].Issues) == 0 {
+		entries := buildDrawerEntries(m.columns[idx], m.collapsed)
+		if selectedID == "" || len(entries) == 0 {
 			m.columns[idx].Selected = 0
 			m.columns[idx].Offset = 0
 			continue
 		}
-		for issueIndex, issue := range m.columns[idx].Issues {
-			if issue.ID == selectedID {
-				m.columns[idx].Selected = issueIndex
+		found := false
+		for entryIndex, entry := range entries {
+			if entry.Issue.ID == selectedID {
+				m.columns[idx].Selected = entryIndex
+				found = true
 				break
 			}
+		}
+		if !found {
+			m.columns[idx].Selected = 0
+			m.columns[idx].Offset = 0
 		}
 	}
 }
 
-func renderDashboardHeader(styles dashboardStyles) string {
-	art := []string{
-		" ____                  _               _                      ",
-		"|  _ \\ ___  __ _ _   _| | ___  _ __ __| | ___  _ __ ___  _ __ ",
-		"| |_) / _ \\ / _` | | | | |/ _ \\| '__/ _` |/ _ \\| '_ ` _ \\| '_ \\",
-		"|  _ <  __/ (_| | |_| | | (_) | | | (_| | (_) | | | | | | |_) |",
-		"|_| \\_\\___|\\__, |\\__,_|_|\\___/|_|  \\__,_|\\___/|_| |_| |_| .__/ ",
-		"            |___/                                        |_|    ",
+func selectedIssueID(column issueColumn, collapsed map[string]bool) string {
+	entries := buildDrawerEntries(column, collapsed)
+	if len(entries) == 0 {
+		return ""
+	}
+	if column.Selected < 0 || column.Selected >= len(entries) {
+		return ""
+	}
+	return entries[column.Selected].Issue.ID
+}
+
+func orderIssuesWithParents(issues []bdIssue) ([]bdIssue, map[string]string, map[string]int) {
+	ordered := make([]bdIssue, 0, len(issues))
+	parentByID := make(map[string]string)
+	levelByID := make(map[string]int)
+	added := make(map[string]bool)
+
+	issueByID := make(map[string]bdIssue, len(issues))
+	for _, issue := range issues {
+		issueByID[issue.ID] = issue
 	}
 
-	welcome := styles.welcome.Render("Welcome to Bordertown")
-	return lipgloss.JoinVertical(lipgloss.Left, welcome, styles.header.Render(strings.Join(art, "\n")))
+	childrenByID := make(map[string][]string)
+	for _, issue := range issues {
+		for _, dep := range issue.Dependencies {
+			childID := dep.DependsOnID
+			if childID == "" {
+				continue
+			}
+			if _, ok := issueByID[childID]; !ok {
+				continue
+			}
+			if dep.Type == "parent-child" {
+				parentByID[issue.ID] = childID
+				childrenByID[childID] = append(childrenByID[childID], issue.ID)
+				continue
+			}
+			childrenByID[issue.ID] = append(childrenByID[issue.ID], childID)
+		}
+	}
+
+	for parentID := range childrenByID {
+		children := childrenByID[parentID]
+		if len(children) < 2 {
+			continue
+		}
+		sorted := make([]string, 0, len(children))
+		seen := make(map[string]bool)
+		for _, issue := range issues {
+			if !containsID(children, issue.ID) {
+				continue
+			}
+			if seen[issue.ID] {
+				continue
+			}
+			sorted = append(sorted, issue.ID)
+			seen[issue.ID] = true
+		}
+		childrenByID[parentID] = sorted
+	}
+
+	visiting := make(map[string]bool)
+	var visit func(id string, level int)
+	visit = func(id string, level int) {
+		if added[id] {
+			return
+		}
+		if visiting[id] {
+			return
+		}
+		issue, ok := issueByID[id]
+		if !ok {
+			return
+		}
+		visiting[id] = true
+		ordered = append(ordered, issue)
+		added[id] = true
+		levelByID[id] = level
+		for _, childID := range childrenByID[id] {
+			if parentByID[childID] == "" {
+				parentByID[childID] = id
+			}
+			visit(childID, level+1)
+		}
+		visiting[id] = false
+	}
+
+	for _, issue := range issues {
+		if issue.IssueType != "epic" {
+			continue
+		}
+		visit(issue.ID, 0)
+	}
+
+	for _, issue := range issues {
+		if added[issue.ID] {
+			continue
+		}
+		visit(issue.ID, 0)
+	}
+
+	return ordered, parentByID, levelByID
+}
+
+func containsID(ids []string, id string) bool {
+	for _, value := range ids {
+		if value == id {
+			return true
+		}
+	}
+	return false
+}
+
+func renderDashboardHeader(styles dashboardStyles) string {
+	welcome := styles.welcome.Render("Welcome to Carnie Camp")
+	return welcome
+}
+
+func renderDashboardNavbar(m dashboardModel, styles dashboardStyles) string {
+	width := m.width
+	if width <= 0 {
+		return ""
+	}
+
+	leftText := " CARNIE CAMP "
+	meta := "Beads loading..."
+	if !m.lastUpdated.IsZero() {
+		meta = fmt.Sprintf("Beads %d", m.summary.TotalIssues)
+	}
+	leftText, meta = clampNavbarSegments(width, leftText, meta)
+	left := styles.navbarTitle.Render(leftText)
+	right := styles.navbarMeta.Render(meta)
+	line1 := renderNavbarLine(width, left, right, styles.navbarBar)
+
+	leftSubText := " Layout: Master-Detail  |  tab switch  j/k move  left/right collapse  r refresh "
+	updated := "Stand by..."
+	if m.errMessage != "" {
+		updated = m.errMessage
+	} else if !m.lastUpdated.IsZero() {
+		updated = fmt.Sprintf("Updated %s", m.lastUpdated.Format("15:04:05"))
+	}
+	leftSubText, updated = clampNavbarSegments(width, leftSubText, updated)
+	leftSub := styles.navbarSub.Render(leftSubText)
+	rightSub := styles.navbarMeta.Render(updated)
+	line2 := renderNavbarLine(width, leftSub, rightSub, styles.navbarBar)
+
+	return lipgloss.JoinVertical(lipgloss.Left, line1, line2)
+}
+
+func renderNavbarLine(width int, left string, right string, style lipgloss.Style) string {
+	if width <= 0 {
+		return ""
+	}
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+	}
+	line := left + strings.Repeat(" ", gap) + right
+	return style.Width(width).Render(line)
+}
+
+func clampNavbarSegments(width int, left string, right string) (string, string) {
+	if width <= 0 {
+		return left, right
+	}
+	maxRight := width / 3
+	if maxRight < 10 {
+		maxRight = minInt(10, width)
+	}
+	if maxRight > width-1 {
+		maxRight = width - 1
+	}
+	maxLeft := width - maxRight - 1
+	if maxLeft < 5 {
+		maxLeft = width - 1
+	}
+	return truncateASCII(left, maxLeft), truncateASCII(right, maxRight)
 }
 
 func renderDashboardStats(m dashboardModel, styles dashboardStyles) string {
@@ -339,12 +564,8 @@ func renderDashboardStats(m dashboardModel, styles dashboardStyles) string {
 		styles.tag.Render(fmt.Sprintf("Deferred %d", status.DeferredIssues)),
 		styles.tag.Render(fmt.Sprintf("Closed %d", status.ClosedIssues)),
 	}
-	viewLabel := "Overview"
-	if m.viewMode == viewKanban {
-		viewLabel = "Kanban"
-	}
 	statsLine := styles.subheader.Render(lipgloss.JoinHorizontal(lipgloss.Left, tags...))
-	viewLine := styles.dimText.Render(fmt.Sprintf("View: %s (v toggle)", viewLabel))
+	viewLine := styles.dimText.Render("Layout: Master-Detail")
 	return lipgloss.JoinVertical(lipgloss.Left, statsLine, viewLine)
 }
 
@@ -373,39 +594,182 @@ func renderDashboardColumns(m dashboardModel, styles dashboardStyles) string {
 }
 
 func renderDashboardBody(m dashboardModel, styles dashboardStyles) string {
-	if m.viewMode == viewKanban {
-		return renderDashboardColumns(m, styles)
-	}
-	return renderDashboardOverview(m, styles)
+	return renderMasterDetail(m, styles)
 }
 
-func renderDashboardOverview(m dashboardModel, styles dashboardStyles) string {
+func renderMasterDetail(m dashboardModel, styles dashboardStyles) string {
 	width := m.width
 	if width <= 0 {
 		return ""
 	}
-	panelWidth := width
-	panelHeight := availableListHeight(m.height)
-	return renderTownPanel(m, panelWidth, panelHeight, styles)
-}
-
-func renderTownPanel(m dashboardModel, width int, height int, styles dashboardStyles) string {
-	status := m.summary
-	lines := []string{
-		styles.dimText.Render(truncateASCII(
-			fmt.Sprintf("Open %d  Ready %d  In Progress %d  Blocked %d  Closed %d", status.OpenIssues, status.ReadyIssues, status.InProgressIssues, status.BlockedIssues, status.ClosedIssues),
-			width,
-		)),
-		"",
+	height := availableListHeight(m.height)
+	if height < 3 {
+		height = 3
 	}
 
-	lines = append(lines, renderIssuePreviewLines("Ready", m.columns[0].Issues, 2, width, styles)...)
-	lines = append(lines, "")
-	lines = append(lines, renderIssuePreviewLines("In Progress", m.columns[1].Issues, 2, width, styles)...)
-	lines = append(lines, "")
-	lines = append(lines, renderIssuePreviewLines("Blocked", m.columns[2].Issues, 2, width, styles)...)
+	minDrawer := 26
+	maxDrawer := 40
+	drawerWidth := width / 3
+	if drawerWidth < minDrawer {
+		drawerWidth = minDrawer
+	}
+	if drawerWidth > maxDrawer {
+		drawerWidth = maxDrawer
+	}
+	if drawerWidth > width-12 {
+		drawerWidth = width - 12
+	}
+	if drawerWidth < 20 {
+		drawerWidth = minInt(20, width)
+	}
+	gap := 2
+	if drawerWidth+gap >= width {
+		return renderDrawer(m, width, height, styles)
+	}
 
-	return renderPanel("Project Beads", lines, width, height, styles)
+	left := renderDrawer(m, drawerWidth, height, styles)
+	right := renderDetailPanel(m, width-drawerWidth-gap, height, styles)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
+}
+
+func renderDrawer(m dashboardModel, width int, height int, styles dashboardStyles) string {
+	rows := make([]string, 0, height)
+	for colIndex, column := range m.columns {
+		active := colIndex == m.activeColumn
+		entries := buildDrawerEntries(column, m.collapsed)
+		title := fmt.Sprintf("%s (%d)", column.Title, len(entries))
+		titleStyle := styles.columnTitleDim
+		if active {
+			titleStyle = styles.columnTitle
+		}
+		rows = append(rows, titleStyle.Render(truncateASCII(title, width)))
+
+		if len(entries) == 0 {
+			rows = append(rows, styles.dimText.Render(truncateASCII("(none)", width)))
+			continue
+		}
+
+		start := column.Offset
+		if start < 0 {
+			start = 0
+		}
+		visible := height - len(rows)
+		if visible < 1 {
+			break
+		}
+		end := start + visible
+		if end > len(entries) {
+			end = len(entries)
+		}
+
+		for i := start; i < end; i++ {
+			entry := entries[i]
+			issue := entry.Issue
+			line := fmt.Sprintf("%s %s", issue.ID, issue.Title)
+			if issue.IssueType == "epic" {
+				indicator := "[-]"
+				if m.collapsed[issue.ID] {
+					indicator = "[+]"
+				}
+				line = indicator + " EPIC " + line
+			}
+			if entry.Level > 0 {
+				line = strings.Repeat("  ", entry.Level) + "- " + line
+			}
+			line = truncateASCII(line, width)
+			style := styles.item
+			if issue.IssueType == "epic" {
+				style = styles.panelTitle
+			}
+			if i == column.Selected {
+				if active {
+					style = styles.itemSelected
+				} else {
+					style = styles.itemSelectedIn
+				}
+			}
+			rows = append(rows, style.Render(line))
+			if len(rows) >= height {
+				break
+			}
+		}
+
+		if len(rows) >= height {
+			break
+		}
+	}
+
+	for len(rows) < height {
+		rows = append(rows, "")
+	}
+
+	return lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
+}
+
+func buildDrawerEntries(column issueColumn, collapsed map[string]bool) []drawerEntry {
+	if len(column.Issues) == 0 {
+		return nil
+	}
+	parentByID := column.ParentByID
+	if parentByID == nil {
+		parentByID = map[string]string{}
+	}
+	levelByID := column.LevelByID
+	if levelByID == nil {
+		levelByID = map[string]int{}
+	}
+	issueByID := make(map[string]bdIssue, len(column.Issues))
+	for _, issue := range column.Issues {
+		issueByID[issue.ID] = issue
+	}
+	entries := make([]drawerEntry, 0, len(column.Issues))
+	for _, issue := range column.Issues {
+		if isHiddenByCollapse(issue.ID, parentByID, issueByID, collapsed) {
+			continue
+		}
+		entries = append(entries, drawerEntry{Issue: issue, Level: levelByID[issue.ID]})
+	}
+	return entries
+}
+
+func isHiddenByCollapse(id string, parentByID map[string]string, issueByID map[string]bdIssue, collapsed map[string]bool) bool {
+	parent := parentByID[id]
+	for parent != "" {
+		issue, ok := issueByID[parent]
+		if ok && issue.IssueType == "epic" && collapsed[parent] {
+			return true
+		}
+		parent = parentByID[parent]
+	}
+	return false
+}
+
+func renderDetailPanel(m dashboardModel, width int, height int, styles dashboardStyles) string {
+	selected := m.selectedIssue()
+	lines := []string{}
+	if selected == nil {
+		lines = append(lines, styles.dimText.Render(truncateASCII("Select an issue to see details.", width)))
+		return renderPanel("Issue Details", lines, width, height, styles)
+	}
+
+	lines = append(lines, styles.panelTitle.Render(truncateASCII(fmt.Sprintf("%s %s", selected.ID, selected.Title), width)))
+	lines = append(lines, styles.dimText.Render(truncateASCII(fmt.Sprintf("Status: %s", selected.Status), width)))
+	lines = append(lines, styles.dimText.Render(truncateASCII(fmt.Sprintf("Priority: P%d", selected.Priority), width)))
+	if selected.Owner != "" {
+		lines = append(lines, styles.dimText.Render(truncateASCII(fmt.Sprintf("Owner: %s", selected.Owner), width)))
+	}
+	if selected.UpdatedAt != "" {
+		lines = append(lines, styles.dimText.Render(truncateASCII(fmt.Sprintf("Updated: %s", formatTimestamp(selected.UpdatedAt)), width)))
+	}
+	lines = append(lines, "")
+	if selected.Description != "" {
+		lines = append(lines, styles.panelTitle.Render(truncateASCII("Notes", width)))
+		for _, line := range wrapLines(selected.Description, width) {
+			lines = append(lines, styles.item.Render(truncateASCII(line, width)))
+		}
+	}
+
+	return renderPanel("Issue Details", lines, width, height, styles)
 }
 
 func renderIssuePreviewLines(title string, issues []bdIssue, limit int, width int, styles dashboardStyles) []string {
@@ -508,10 +872,7 @@ func renderColumn(column issueColumn, width int, height int, active bool, styles
 }
 
 func renderDashboardFooter(m dashboardModel, styles dashboardStyles) string {
-	hint := "h help  v view  r refresh  q quit"
-	if m.viewMode == viewKanban {
-		hint = "h help  tab switch  j/k move  v view  r refresh  q quit"
-	}
+	hint := "h help  tab switch  j/k move  left/right collapse  r refresh  q quit"
 	updated := ""
 	updatedStyle := styles.dimText
 	if !m.lastUpdated.IsZero() {
@@ -543,13 +904,10 @@ func renderHelpOverlay(base string, m dashboardModel, styles dashboardStyles) st
 
 	help := []string{
 		styles.helpTitle.Render("Dashboard Help"),
-		styles.helpText.Render("Keys: q quit  tab switch columns  j/k move  v view  r refresh  h close"),
+		styles.helpText.Render("Keys: q quit  tab switch section  j/k move  left/right collapse  r refresh  h close"),
+		styles.helpText.Render("Layout: Master-Detail"),
+		"",
 	}
-	viewLabel := "Overview"
-	if m.viewMode == viewKanban {
-		viewLabel = "Kanban"
-	}
-	help = append(help, styles.helpText.Render(fmt.Sprintf("View: %s (v toggle)", viewLabel)), "")
 
 	selected := m.selectedIssue()
 	if selected != nil {
@@ -578,15 +936,68 @@ func renderHelpOverlay(base string, m dashboardModel, styles dashboardStyles) st
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
+func renderTentFrame(content string, styles dashboardStyles, width int, height int) string {
+	frameHeight := 3
+	if width < 4 || height <= frameHeight {
+		return content
+	}
+
+	innerWidth := width - 2
+	innerHeight := height - frameHeight
+	inner := lipgloss.NewStyle().Width(innerWidth).Height(innerHeight).Render(content)
+	lines := strings.Split(inner, "\n")
+	if len(lines) < innerHeight {
+		for len(lines) < innerHeight {
+			lines = append(lines, "")
+		}
+	}
+	if len(lines) > innerHeight {
+		lines = lines[:innerHeight]
+	}
+
+	top := styles.tentTop.Render("/" + strings.Repeat("^", width-2) + "\\")
+	stripe := renderTentStripeLine(styles, width)
+	base := styles.tentBase.Render("\\" + strings.Repeat("_", width-2) + "/")
+	rows := make([]string, 0, height)
+	rows = append(rows, top)
+	rows = append(rows, stripe)
+	for _, line := range lines {
+		rows = append(rows, styles.tentPost.Render("|")+line+styles.tentPost.Render("|"))
+	}
+	rows = append(rows, base)
+
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+func renderTentStripeLine(styles dashboardStyles, width int) string {
+	if width < 2 {
+		return ""
+	}
+	inner := width - 2
+	var b strings.Builder
+	b.WriteString(styles.tentPost.Render("|"))
+	for i := 0; i < inner; i++ {
+		if i%2 == 0 {
+			b.WriteString(styles.tentStripeA.Render("^"))
+			continue
+		}
+		b.WriteString(styles.tentStripeB.Render("~"))
+	}
+	b.WriteString(styles.tentPost.Render("|"))
+	return b.String()
+}
+
 func (m dashboardModel) selectedIssue() *bdIssue {
 	if len(m.columns) == 0 {
 		return nil
 	}
 	column := m.columns[m.activeColumn]
-	if len(column.Issues) == 0 || column.Selected >= len(column.Issues) {
+	entries := buildDrawerEntries(column, m.collapsed)
+	if len(entries) == 0 || column.Selected >= len(entries) {
 		return nil
 	}
-	return &column.Issues[column.Selected]
+	issue := entries[column.Selected].Issue
+	return &issue
 }
 
 func loadDashboardDataCmd(limit int) tea.Cmd {
@@ -607,19 +1018,7 @@ func fetchDashboardData(limit int) (dashboardData, error) {
 		return dashboardData{}, fmt.Errorf("parse bd status: %w", err)
 	}
 
-	ready, err := fetchIssues([]string{"list", "--ready", "--json", "--sort", "priority"}, limit)
-	if err != nil {
-		return dashboardData{}, err
-	}
-	inProgress, err := fetchIssues([]string{"list", "--status", "in_progress", "--json", "--sort", "priority"}, limit)
-	if err != nil {
-		return dashboardData{}, err
-	}
-	blocked, err := fetchIssues([]string{"list", "--status", "blocked", "--json", "--sort", "priority"}, limit)
-	if err != nil {
-		return dashboardData{}, err
-	}
-	closed, err := fetchIssues([]string{"list", "--status", "closed", "--json", "--sort", "updated", "--reverse"}, limit)
+	ready, inProgress, blocked, closed, err := fetchIssuesFromBeads(limit)
 	if err != nil {
 		return dashboardData{}, err
 	}
@@ -631,6 +1030,91 @@ func fetchDashboardData(limit int) (dashboardData, error) {
 		Blocked:    blocked,
 		Closed:     closed,
 	}, nil
+}
+
+func fetchIssuesFromBeads(limit int) ([]bdIssue, []bdIssue, []bdIssue, []bdIssue, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("get working directory: %w", err)
+	}
+	root, err := beads.FindBeadsRoot(cwd)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("find beads: %w", err)
+	}
+	if err := exportBeadsJSONL(root); err != nil {
+		return nil, nil, nil, nil, err
+	}
+	issues, err := beads.LoadIssues(root)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("load beads issues: %w", err)
+	}
+
+	readyIssues := filterIssuesByStatus(issues, "open")
+	inProgressIssues := filterIssuesByStatus(issues, "in_progress")
+	blockedIssues := filterIssuesByStatus(issues, "blocked")
+	closedIssues := filterIssuesByStatus(issues, "closed")
+
+	sort.SliceStable(readyIssues, func(i, j int) bool { return readyIssues[i].Priority < readyIssues[j].Priority })
+	sort.SliceStable(inProgressIssues, func(i, j int) bool { return inProgressIssues[i].Priority < inProgressIssues[j].Priority })
+	sort.SliceStable(blockedIssues, func(i, j int) bool { return blockedIssues[i].Priority < blockedIssues[j].Priority })
+	sort.SliceStable(closedIssues, func(i, j int) bool { return closedIssues[i].UpdatedAt.After(closedIssues[j].UpdatedAt) })
+
+	readyIssues = applyIssueLimit(readyIssues, limit)
+	inProgressIssues = applyIssueLimit(inProgressIssues, limit)
+	blockedIssues = applyIssueLimit(blockedIssues, limit)
+	closedIssues = applyIssueLimit(closedIssues, limit)
+
+	return mapBeadsIssues(readyIssues), mapBeadsIssues(inProgressIssues), mapBeadsIssues(blockedIssues), mapBeadsIssues(closedIssues), nil
+}
+
+func exportBeadsJSONL(root string) error {
+	output := filepath.Join(root, beads.BeadsDir, beads.IssuesFile)
+	command := exec.Command("bd", "export", "-o", output, "-q")
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("bd export failed: %w", err)
+	}
+	return nil
+}
+
+func filterIssuesByStatus(issues []beads.Issue, status string) []beads.Issue {
+	filtered := make([]beads.Issue, 0, len(issues))
+	for _, issue := range issues {
+		if issue.Status != status {
+			continue
+		}
+		filtered = append(filtered, issue)
+	}
+	return filtered
+}
+
+func applyIssueLimit(issues []beads.Issue, limit int) []beads.Issue {
+	if limit <= 0 || len(issues) <= limit {
+		return issues
+	}
+	return issues[:limit]
+}
+
+func mapBeadsIssues(issues []beads.Issue) []bdIssue {
+	output := make([]bdIssue, 0, len(issues))
+	for _, issue := range issues {
+		deps := make([]bdDependency, 0, len(issue.Dependencies))
+		for _, dep := range issue.Dependencies {
+			deps = append(deps, bdDependency{IssueID: dep.IssueID, DependsOnID: dep.DependsOnID, Type: dep.Type})
+		}
+		output = append(output, bdIssue{
+			ID:           issue.ID,
+			Title:        issue.Title,
+			Description:  issue.Description,
+			Status:       issue.Status,
+			Priority:     issue.Priority,
+			IssueType:    issue.IssueType,
+			Owner:        issue.Owner,
+			UpdatedAt:    issue.UpdatedAt.Format(time.RFC3339),
+			CreatedAt:    issue.CreatedAt.Format(time.RFC3339),
+			Dependencies: deps,
+		})
+	}
+	return output
 }
 
 func fetchIssues(args []string, limit int) ([]bdIssue, error) {
@@ -665,22 +1149,31 @@ func newDashboardStyles() dashboardStyles {
 	}
 
 	return dashboardStyles{
-		header:         lipgloss.NewStyle().Foreground(lipgloss.Color("117")).Bold(true),
-		welcome:        lipgloss.NewStyle().Foreground(lipgloss.Color("159")).Bold(true),
-		subheader:      lipgloss.NewStyle().Foreground(lipgloss.Color("153")),
-		tag:            lipgloss.NewStyle().Foreground(lipgloss.Color("24")).Background(lipgloss.Color("159")).Padding(0, 1),
-		columnTitle:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("111")),
-		columnTitleDim: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("67")),
-		panelTitle:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("111")),
+		header:         lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true),
+		welcome:        lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true),
+		subheader:      lipgloss.NewStyle().Foreground(lipgloss.Color("222")),
+		tag:            lipgloss.NewStyle().Foreground(lipgloss.Color("52")).Background(lipgloss.Color("220")).Padding(0, 1).Bold(true),
+		columnTitle:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
+		columnTitleDim: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("130")),
+		panelTitle:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
 		item:           lipgloss.NewStyle().Foreground(lipgloss.Color("254")),
-		itemSelected:   lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("27")).Bold(true),
-		itemSelectedIn: lipgloss.NewStyle().Foreground(lipgloss.Color("153")).Background(lipgloss.Color("24")),
-		footer:         lipgloss.NewStyle().Foreground(lipgloss.Color("110")),
-		helpBox:        lipgloss.NewStyle().Border(border).BorderForeground(lipgloss.Color("111")).Padding(1, 2).Foreground(lipgloss.Color("254")).Background(lipgloss.Color("24")),
-		helpTitle:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("159")),
+		itemSelected:   lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("196")).Bold(true),
+		itemSelectedIn: lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Background(lipgloss.Color("130")),
+		footer:         lipgloss.NewStyle().Foreground(lipgloss.Color("179")),
+		helpBox:        lipgloss.NewStyle().Border(border).BorderForeground(lipgloss.Color("214")).Padding(1, 2).Foreground(lipgloss.Color("254")).Background(lipgloss.Color("52")),
+		helpTitle:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")),
 		helpText:       lipgloss.NewStyle().Foreground(lipgloss.Color("254")),
-		dimText:        lipgloss.NewStyle().Foreground(lipgloss.Color("110")),
-		errorText:      lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true),
+		dimText:        lipgloss.NewStyle().Foreground(lipgloss.Color("178")),
+		errorText:      lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
+		navbarBar:      lipgloss.NewStyle().Background(lipgloss.Color("124")).Foreground(lipgloss.Color("230")).Bold(true),
+		navbarTitle:    lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Bold(true),
+		navbarMeta:     lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true),
+		navbarSub:      lipgloss.NewStyle().Foreground(lipgloss.Color("229")),
+		tentTop:        lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
+		tentPost:       lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Background(lipgloss.Color("52")).Bold(true),
+		tentBase:       lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
+		tentStripeA:    lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Background(lipgloss.Color("124")).Bold(true),
+		tentStripeB:    lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("130")).Bold(true),
 	}
 }
 

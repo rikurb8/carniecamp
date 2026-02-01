@@ -5,7 +5,7 @@ import "testing"
 func TestParseBdIssues(t *testing.T) {
 	input := []byte(`[
 		{
-			"id": "bt-1",
+			"id": "cn-1",
 			"title": "Test issue",
 			"description": "Something to do",
 			"status": "open",
@@ -25,8 +25,8 @@ func TestParseBdIssues(t *testing.T) {
 		t.Fatalf("expected 1 issue, got %d", len(issues))
 	}
 	issue := issues[0]
-	if issue.ID != "bt-1" {
-		t.Fatalf("expected id bt-1, got %s", issue.ID)
+	if issue.ID != "cn-1" {
+		t.Fatalf("expected id cn-1, got %s", issue.ID)
 	}
 	if issue.Priority != 2 {
 		t.Fatalf("expected priority 2, got %d", issue.Priority)

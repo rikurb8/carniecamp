@@ -24,19 +24,19 @@ tasks:
   run:
     desc: Run CLI
     cmds:
-      - go run ./cmd/bordertown
+      - go run ./cmd/carnie
 
   build:
     desc: Build CLI binary
     cmds:
-      - go build -o ./bin/bordertown ./cmd/bordertown
+      - go build -o ./bin/carnie ./cmd/carnie
     sources:
       - cmd/**/*.go
       - internal/**/*.go
       - go.mod
       - go.sum
     generates:
-      - bin/bordertown
+      - bin/carnie
 
   ci:
     desc: Run formatting and tests

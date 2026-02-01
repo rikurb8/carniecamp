@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rikurb8/bordertown/internal/beads"
-	"github.com/rikurb8/bordertown/internal/config"
+	"github.com/rikurb8/carnie/internal/beads"
+	"github.com/rikurb8/carnie/internal/config"
 )
 
 // ProjectContext holds information about the current project for context injection.
@@ -24,14 +24,14 @@ type EpicSummary struct {
 	Description string
 }
 
-// GatherContext collects project context from town.yml and beads.
-func GatherContext(workDir string, townCfg *config.TownConfig) ProjectContext {
+// GatherContext collects project context from camp.yml and beads.
+func GatherContext(workDir string, campCfg *config.CampConfig) ProjectContext {
 	ctx := ProjectContext{}
 
-	// Get project info from town config
-	if townCfg != nil {
-		ctx.ProjectName = townCfg.Name
-		ctx.ProjectDescription = townCfg.Description
+	// Get project info from camp config
+	if campCfg != nil {
+		ctx.ProjectName = campCfg.Name
+		ctx.ProjectDescription = campCfg.Description
 	}
 
 	// Try to load epics from beads

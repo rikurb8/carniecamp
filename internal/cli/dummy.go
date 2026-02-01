@@ -11,7 +11,7 @@ func newDummyCommand() *cobra.Command {
 		Use:   "hello",
 		Short: "Print a sample greeting",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "Hello from Bordertown.")
+			fmt.Fprintln(cmd.OutOrStdout(), "Hello from Carnie.")
 			return nil
 		},
 	}

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rikurb8/bordertown/internal/config"
+	"github.com/rikurb8/carnie/internal/config"
 )
 
 func TestFormatContextSection_Empty(t *testing.T) {
@@ -100,7 +100,7 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestGatherContext_WithConfig(t *testing.T) {
-	cfg := &config.TownConfig{
+	cfg := &config.CampConfig{
 		Name:        "MyProject",
 		Description: "Project description",
 	}

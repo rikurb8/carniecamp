@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rikurb8/bordertown/internal/config"
+	"github.com/rikurb8/carnie/internal/config"
 )
 
-func TestTownInitCreatesConfig(t *testing.T) {
+func TestCampInitCreatesConfig(t *testing.T) {
 	dir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
@@ -20,24 +20,24 @@ func TestTownInitCreatesConfig(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"town", "init", "--name", "test-town"})
+	root.SetArgs([]string{"camp", "init", "--name", "test-camp"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	configPath := filepath.Join(dir, config.TownConfigFile)
+	configPath := filepath.Join(dir, config.CampConfigFile)
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Fatalf("expected %s to be created", config.TownConfigFile)
+		t.Fatalf("expected %s to be created", config.CampConfigFile)
 	}
 
-	cfg, err := config.LoadTownConfig(configPath)
+	cfg, err := config.LoadCampConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if cfg.Name != "test-town" {
-		t.Errorf("expected name 'test-town', got %q", cfg.Name)
+	if cfg.Name != "test-camp" {
+		t.Errorf("expected name 'test-camp', got %q", cfg.Name)
 	}
 
 	if cfg.Version != config.CurrentVersion {
@@ -45,7 +45,7 @@ func TestTownInitCreatesConfig(t *testing.T) {
 	}
 }
 
-func TestTownInitDefaultsToDirectoryName(t *testing.T) {
+func TestCampInitDefaultsToDirectoryName(t *testing.T) {
 	dir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
@@ -55,13 +55,13 @@ func TestTownInitDefaultsToDirectoryName(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"town", "init"})
+	root.SetArgs([]string{"camp", "init"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	cfg, err := config.LoadTownConfig(filepath.Join(dir, config.TownConfigFile))
+	cfg, err := config.LoadCampConfig(filepath.Join(dir, config.CampConfigFile))
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
@@ -72,24 +72,24 @@ func TestTownInitDefaultsToDirectoryName(t *testing.T) {
 	}
 }
 
-func TestTownInitErrorsIfExists(t *testing.T) {
+func TestCampInitErrorsIfExists(t *testing.T) {
 	dir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
 	os.Chdir(dir)
 
-	configPath := filepath.Join(dir, config.TownConfigFile)
+	configPath := filepath.Join(dir, config.CampConfigFile)
 	os.WriteFile(configPath, []byte("existing"), 0644)
 
 	root := NewRootCommand()
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"town", "init"})
+	root.SetArgs([]string{"camp", "init"})
 
 	err := root.Execute()
 	if err == nil {
-		t.Fatal("expected error when town.yml exists")
+		t.Fatal("expected error when camp.yml exists")
 	}
 
 	if !strings.Contains(err.Error(), "already exists") {
@@ -97,36 +97,36 @@ func TestTownInitErrorsIfExists(t *testing.T) {
 	}
 }
 
-func TestTownInitForceOverwrites(t *testing.T) {
+func TestCampInitForceOverwrites(t *testing.T) {
 	dir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
 	os.Chdir(dir)
 
-	configPath := filepath.Join(dir, config.TownConfigFile)
+	configPath := filepath.Join(dir, config.CampConfigFile)
 	os.WriteFile(configPath, []byte("old content"), 0644)
 
 	root := NewRootCommand()
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"town", "init", "--name", "new-town", "--force"})
+	root.SetArgs([]string{"camp", "init", "--name", "new-camp", "--force"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error with --force, got %v", err)
 	}
 
-	cfg, err := config.LoadTownConfig(configPath)
+	cfg, err := config.LoadCampConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if cfg.Name != "new-town" {
-		t.Errorf("expected name 'new-town', got %q", cfg.Name)
+	if cfg.Name != "new-camp" {
+		t.Errorf("expected name 'new-camp', got %q", cfg.Name)
 	}
 }
 
-func TestTownInitSetsDescription(t *testing.T) {
+func TestCampInitSetsDescription(t *testing.T) {
 	dir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
@@ -136,13 +136,13 @@ func TestTownInitSetsDescription(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"town", "init", "--name", "my-town", "--description", "A test workspace"})
+	root.SetArgs([]string{"camp", "init", "--name", "my-camp", "--description", "A test workspace"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	cfg, err := config.LoadTownConfig(filepath.Join(dir, config.TownConfigFile))
+	cfg, err := config.LoadCampConfig(filepath.Join(dir, config.CampConfigFile))
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestTownInitSetsDescription(t *testing.T) {
 	}
 }
 
-func TestTownInitConfigHasDefaults(t *testing.T) {
+func TestCampInitConfigHasDefaults(t *testing.T) {
 	dir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
@@ -162,19 +162,19 @@ func TestTownInitConfigHasDefaults(t *testing.T) {
 	output := &bytes.Buffer{}
 	root.SetOut(output)
 	root.SetErr(output)
-	root.SetArgs([]string{"town", "init", "--name", "test"})
+	root.SetArgs([]string{"camp", "init", "--name", "test"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	cfg, err := config.LoadTownConfig(filepath.Join(dir, config.TownConfigFile))
+	cfg, err := config.LoadCampConfig(filepath.Join(dir, config.CampConfigFile))
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if cfg.Mayor.Model != config.DefaultMayorModel {
-		t.Errorf("expected mayor.model %q, got %q", config.DefaultMayorModel, cfg.Mayor.Model)
+	if cfg.Operator.Model != config.DefaultOperatorModel {
+		t.Errorf("expected operator.model %q, got %q", config.DefaultOperatorModel, cfg.Operator.Model)
 	}
 
 	if cfg.Defaults.AgentModel != config.DefaultAgentModel {

@@ -7,27 +7,28 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/rikurb8/bordertown/internal/beads"
-	"github.com/rikurb8/bordertown/internal/config"
-	"github.com/rikurb8/bordertown/internal/prompts"
-	"github.com/rikurb8/bordertown/internal/session"
+	"github.com/rikurb8/carnie/internal/beads"
+	"github.com/rikurb8/carnie/internal/config"
+	"github.com/rikurb8/carnie/internal/prompts"
+	"github.com/rikurb8/carnie/internal/session"
 	"github.com/spf13/cobra"
 )
 
-func newMayorCommand() *cobra.Command {
+func newOperatorCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "mayor",
-		Short: "Project oversight and planning",
-		Long:  "Commands for reviewing project status, epic planning, and work prioritization.",
+		Use:     "operator",
+		Aliases: []string{"op"},
+		Short:   "Project oversight and planning",
+		Long:    "Commands for reviewing project status, epic planning, and work prioritization.",
 	}
 
-	cmd.AddCommand(newMayorReviewCommand())
-	cmd.AddCommand(newMayorNewEpicCommand())
+	cmd.AddCommand(newOperatorReviewCommand())
+	cmd.AddCommand(newOperatorNewEpicCommand())
 
 	return cmd
 }
 
-func newMayorReviewCommand() *cobra.Command {
+func newOperatorReviewCommand() *cobra.Command {
 	var showClosed bool
 
 	cmd := &cobra.Command{
@@ -64,7 +65,7 @@ func newMayorReviewCommand() *cobra.Command {
 
 			var output strings.Builder
 
-			output.WriteString(titleStyle.Render("Mayor Review"))
+			output.WriteString(titleStyle.Render("Operator Review"))
 			output.WriteString("\n\n")
 
 			// Show epics
@@ -158,7 +159,7 @@ func newMayorReviewCommand() *cobra.Command {
 	return cmd
 }
 
-func newMayorNewEpicCommand() *cobra.Command {
+func newOperatorNewEpicCommand() *cobra.Command {
 	var title string
 	var tool string
 
@@ -173,18 +174,18 @@ func newMayorNewEpicCommand() *cobra.Command {
 				return fmt.Errorf("get working directory: %w", err)
 			}
 
-			// Try to load town config for tool preference and context
-			var townCfg *config.TownConfig
+			// Try to load camp config for tool preference and context
+			var campCfg *config.CampConfig
 			planningTool := config.DefaultPlanningTool
-			model := config.DefaultMayorModel
-			configPath := filepath.Join(cwd, config.TownConfigFile)
-			if cfg, err := config.LoadTownConfig(configPath); err == nil {
-				townCfg = cfg
-				if townCfg.Mayor.PlanningTool != "" {
-					planningTool = townCfg.Mayor.PlanningTool
+			model := config.DefaultOperatorModel
+			configPath := filepath.Join(cwd, config.CampConfigFile)
+			if cfg, err := config.LoadCampConfig(configPath); err == nil {
+				campCfg = cfg
+				if campCfg.Operator.PlanningTool != "" {
+					planningTool = campCfg.Operator.PlanningTool
 				}
-				if townCfg.Mayor.Model != "" {
-					model = townCfg.Mayor.Model
+				if campCfg.Operator.Model != "" {
+					model = campCfg.Operator.Model
 				}
 			}
 
@@ -208,17 +209,17 @@ func newMayorNewEpicCommand() *cobra.Command {
 
 			// Load custom prompt or use built-in default
 			var promptFilePath string
-			if townCfg != nil {
-				promptFilePath = townCfg.Mayor.PlanningPromptFile
+			if campCfg != nil {
+				promptFilePath = campCfg.Operator.PlanningPromptFile
 			}
 			basePrompt := prompts.LoadEpicPlanningPrompt(cwd, promptFilePath)
 
 			// Gather project context and build system prompt
-			ctx := prompts.GatherContext(cwd, townCfg)
+			ctx := prompts.GatherContext(cwd, campCfg)
 			systemPrompt := prompts.BuildSystemPromptWithBase(ctx, basePrompt)
 
 			// Build the session options
-			sessionName := "bt-epic-planning"
+			sessionName := "cn-epic-planning"
 			opts := session.Options{
 				Tool:         selectedTool,
 				Model:        model,

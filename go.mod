@@ -1,4 +1,4 @@
-module github.com/rikurb8/bordertown
+module github.com/rikurb8/carnie
 
 go 1.24.4
 

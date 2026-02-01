@@ -1,33 +1,37 @@
-# Mayor Command
+# Operator Command
 
-The `mayor` command provides project oversight and planning tools for your Bordertown workspace.
+The `operator` command provides project oversight and planning tools for your Carnie workspace.
+Alias: `op`
 
 ## Quick Start
 
 ```bash
 # Start planning a new epic
-bt mayor new-epic
+carnie operator new-epic
 
 # Alias
-bt mayor plan-epic
+carnie operator plan-epic
 
 # Plan with an initial idea
-bt mayor new-epic --title "User authentication"
+carnie operator new-epic --title "User authentication"
 
 # Review epics and planning status
-bt mayor review
+carnie operator review
+
+# Shortcut
+carnie op review
 
 # Include closed epics and issues
-bt mayor review --all
+carnie operator review --all
 ```
 
 ## Commands
 
-### `mayor new-epic`
+### `operator new-epic`
 
 Spawns an interactive AI session in tmux to help you plan, refine, and create a new epic with tasks.
 
-Alias: `mayor plan-epic`
+Alias: `operator plan-epic`
 
 **What it does:**
 
@@ -47,7 +51,7 @@ Alias: `mayor plan-epic`
 
 The session runs in tmux, so you can:
 - Detach with `Ctrl+B, D` and return later
-- Reattach with `tmux attach -t bt-epic-planning`
+- Reattach with `tmux attach -t cn-epic-planning`
 - The session persists even if your terminal disconnects
 
 **Requirements:**
@@ -55,13 +59,13 @@ The session runs in tmux, so you can:
 - `tmux` must be installed
 - `claude` or `opencode` must be installed
 
-**Configuration (town.yml):**
+**Configuration (camp.yml):**
 
 ```yaml
-mayor:
+operator:
   model: openai/gpt-5.2-codex
   planning_tool: opencode  # or claude
-  planning_prompt_file: .bordertown/prompts/epic-planning.md  # optional custom prompt
+  planning_prompt_file: .carnie/prompts/epic-planning.md  # optional custom prompt
 ```
 
 Model values use the `<provider>/<model>` format (e.g., `openai/gpt-5.2-codex`).
@@ -69,22 +73,22 @@ Model values use the `<provider>/<model>` format (e.g., `openai/gpt-5.2-codex`).
 **Custom Prompts:**
 
 You can customize the planning prompt by creating a file at:
-- Configured path in `town.yml` under `mayor.planning_prompt_file`
-- Default location: `.bordertown/prompts/epic-planning.md`
+- Configured path in `camp.yml` under `operator.planning_prompt_file`
+- Default location: `.carnie/prompts/epic-planning.md`
 
 If no custom prompt exists, the built-in default is used.
 
 **Context Injection:**
 
 The planning session automatically receives context about:
-- Project name and description (from `town.yml`)
+- Project name and description (from `camp.yml`)
 - Existing epics and their status (from beads)
 
 This helps the AI make suggestions aligned with your existing work.
 
 ---
 
-### `mayor review`
+### `operator review`
 
 Analyzes your beads issues grouped by epic and indicates which epics need more planning.
 
@@ -102,20 +106,20 @@ Analyzes your beads issues grouped by epic and indicates which epics need more p
 **Example output:**
 
 ```
-Mayor Review
+Operator Review
 
-○ bt-abc - Feature Implementation
+○ cn-abc - Feature Implementation
   Tasks: 2 open, 1 closed
-    ○ bt-def - Implement core logic
-    ○ bt-ghi - Add tests
-    ● bt-jkl - Design API
+    ○ cn-def - Implement core logic
+    ○ cn-ghi - Add tests
+    ● cn-jkl - Design API
 
-○ bt-xyz - Another Epic
+○ cn-xyz - Another Epic
   Tasks: 0 open, 0 closed
   ⚠ Needs planning: no tasks defined, description is brief
 
 Orphan Issues (no epic)
-  ○ bt-123 [task] - Standalone task
+  ○ cn-123 [task] - Standalone task
 ```
 
 ## How Epic Grouping Works

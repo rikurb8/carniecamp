@@ -8,22 +8,22 @@ import (
 )
 
 const (
-	TownConfigFile      = "town.yml"
-	CurrentVersion      = 1
-	DefaultMayorModel   = "openai/gpt-5.2-codex"
-	DefaultAgentModel   = "openai/gpt-5.2-codex"
-	DefaultPlanningTool = "opencode"
+	CampConfigFile       = "camp.yml"
+	CurrentVersion       = 1
+	DefaultOperatorModel = "openai/gpt-5.2-codex"
+	DefaultAgentModel    = "openai/gpt-5.2-codex"
+	DefaultPlanningTool  = "opencode"
 )
 
-type TownConfig struct {
-	Version     int         `yaml:"version"`
-	Name        string      `yaml:"name"`
-	Description string      `yaml:"description,omitempty"`
-	Mayor       MayorConfig `yaml:"mayor,omitempty"`
-	Defaults    Defaults    `yaml:"defaults,omitempty"`
+type CampConfig struct {
+	Version     int            `yaml:"version"`
+	Name        string         `yaml:"name"`
+	Description string         `yaml:"description,omitempty"`
+	Operator    OperatorConfig `yaml:"operator,omitempty"`
+	Defaults    Defaults       `yaml:"defaults,omitempty"`
 }
 
-type MayorConfig struct {
+type OperatorConfig struct {
 	Model              string `yaml:"model,omitempty"`
 	PlanningTool       string `yaml:"planning_tool,omitempty"`        // "claude" or "opencode"
 	PlanningPromptFile string `yaml:"planning_prompt_file,omitempty"` // custom prompt file path
@@ -33,12 +33,12 @@ type Defaults struct {
 	AgentModel string `yaml:"agent_model,omitempty"`
 }
 
-func NewTownConfig(name string) *TownConfig {
-	return &TownConfig{
+func NewCampConfig(name string) *CampConfig {
+	return &CampConfig{
 		Version: CurrentVersion,
 		Name:    name,
-		Mayor: MayorConfig{
-			Model:        DefaultMayorModel,
+		Operator: OperatorConfig{
+			Model:        DefaultOperatorModel,
 			PlanningTool: DefaultPlanningTool,
 		},
 		Defaults: Defaults{
@@ -47,7 +47,7 @@ func NewTownConfig(name string) *TownConfig {
 	}
 }
 
-func (c *TownConfig) Write(path string) error {
+func (c *CampConfig) Write(path string) error {
 	data, err := yaml.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
@@ -60,13 +60,13 @@ func (c *TownConfig) Write(path string) error {
 	return nil
 }
 
-func LoadTownConfig(path string) (*TownConfig, error) {
+func LoadCampConfig(path string) (*CampConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 
-	var config TownConfig
+	var config CampConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}

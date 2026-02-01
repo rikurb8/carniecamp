@@ -7,7 +7,7 @@ import (
 
 const (
 	// DefaultPromptDir is the default directory for custom prompts.
-	DefaultPromptDir = ".bordertown/prompts"
+	DefaultPromptDir = ".carnie/prompts"
 	// DefaultEpicPlanningFile is the default filename for epic planning prompts.
 	DefaultEpicPlanningFile = "epic-planning.md"
 )
@@ -15,7 +15,7 @@ const (
 // LoadEpicPlanningPrompt loads the epic planning prompt from a custom file or returns the built-in default.
 // It checks in order:
 // 1. The explicitly configured path (if provided)
-// 2. The default location (.bordertown/prompts/epic-planning.md)
+// 2. The default location (.carnie/prompts/epic-planning.md)
 // 3. Falls back to the built-in EpicPlanningPrompt
 func LoadEpicPlanningPrompt(workDir string, configuredPath string) string {
 	// Try explicitly configured path first

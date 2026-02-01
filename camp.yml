@@ -1,6 +1,6 @@
 version: 1
-name: bordertown
-mayor:
+name: carnie
+operator:
     model: openai/gpt-5.2-codex
     planning_tool: opencode
 defaults:

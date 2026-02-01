@@ -157,7 +157,7 @@ func newStatusCommand() *cobra.Command {
 
 			output := lipgloss.JoinVertical(
 				lipgloss.Left,
-				titleStyle.Render("Bordertown Status"),
+				titleStyle.Render("Carnie Status"),
 				"",
 				renderSection("Project", renderRows(projectRows)),
 				"",

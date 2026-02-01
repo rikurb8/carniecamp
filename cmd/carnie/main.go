@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/rikurb8/bordertown/internal/cli"
+	"github.com/rikurb8/carnie/internal/cli"
 )
 
 func main() {
