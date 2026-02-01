@@ -80,6 +80,28 @@ func LoadRegistry() (*Registry, error) {
 	return &registry, nil
 }
 
+func SaveRegistry(registry *Registry) error {
+	if registry == nil {
+		return fmt.Errorf("registry is required")
+	}
+
+	registryPath, err := RegistryPath()
+	if err != nil {
+		return err
+	}
+
+	data, err := yaml.Marshal(registry)
+	if err != nil {
+		return fmt.Errorf("marshal registry: %w", err)
+	}
+
+	if err := os.WriteFile(registryPath, data, 0644); err != nil {
+		return fmt.Errorf("write registry: %w", err)
+	}
+
+	return nil
+}
+
 func ListRigs() ([]Rig, error) {
 	registry, err := LoadRegistry()
 	if err != nil {

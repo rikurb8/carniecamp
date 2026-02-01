@@ -10,6 +10,7 @@ import (
 	"github.com/rikurb8/bordertown/internal/beads"
 	"github.com/rikurb8/bordertown/internal/config"
 	"github.com/rikurb8/bordertown/internal/prompts"
+	"github.com/rikurb8/bordertown/internal/rig"
 	"github.com/rikurb8/bordertown/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -29,6 +30,7 @@ func newMayorCommand() *cobra.Command {
 
 func newMayorReviewCommand() *cobra.Command {
 	var showClosed bool
+	var rigName string
 
 	cmd := &cobra.Command{
 		Use:   "review",
@@ -40,7 +42,12 @@ func newMayorReviewCommand() *cobra.Command {
 				return fmt.Errorf("get working directory: %w", err)
 			}
 
-			root, err := beads.FindBeadsRoot(cwd)
+			workDir, err := resolveRigDir(rigName, cwd)
+			if err != nil {
+				return err
+			}
+
+			root, err := beads.FindBeadsRoot(workDir)
 			if err != nil {
 				return fmt.Errorf("find beads: %w", err)
 			}
@@ -154,6 +161,7 @@ func newMayorReviewCommand() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&showClosed, "all", false, "Include closed epics and issues")
+	cmd.Flags().StringVar(&rigName, "rig", "", "Rig name to load beads from")
 
 	return cmd
 }
@@ -161,6 +169,7 @@ func newMayorReviewCommand() *cobra.Command {
 func newMayorNewEpicCommand() *cobra.Command {
 	var title string
 	var tool string
+	var rigName string
 
 	cmd := &cobra.Command{
 		Use:     "new-epic",
@@ -173,11 +182,16 @@ func newMayorNewEpicCommand() *cobra.Command {
 				return fmt.Errorf("get working directory: %w", err)
 			}
 
+			workDir, err := resolveRigDir(rigName, cwd)
+			if err != nil {
+				return err
+			}
+
 			// Try to load town config for tool preference and context
 			var townCfg *config.TownConfig
 			planningTool := config.DefaultPlanningTool
 			model := config.DefaultMayorModel
-			configPath := filepath.Join(cwd, config.TownConfigFile)
+			configPath := filepath.Join(workDir, config.TownConfigFile)
 			if cfg, err := config.LoadTownConfig(configPath); err == nil {
 				townCfg = cfg
 				if townCfg.Mayor.PlanningTool != "" {
@@ -214,7 +228,7 @@ func newMayorNewEpicCommand() *cobra.Command {
 			basePrompt := prompts.LoadEpicPlanningPrompt(cwd, promptFilePath)
 
 			// Gather project context and build system prompt
-			ctx := prompts.GatherContext(cwd, townCfg)
+			ctx := prompts.GatherContext(workDir, townCfg)
 			systemPrompt := prompts.BuildSystemPromptWithBase(ctx, basePrompt)
 
 			// Build the session options
@@ -224,7 +238,7 @@ func newMayorNewEpicCommand() *cobra.Command {
 				Model:        model,
 				SystemPrompt: systemPrompt,
 				Prompt:       prompts.EpicPlanningInitialPrompt(title),
-				WorkDir:      cwd,
+				WorkDir:      workDir,
 				Interactive:  true,
 				SessionName:  sessionName,
 			}
@@ -244,6 +258,30 @@ func newMayorNewEpicCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&title, "title", "t", "", "Initial title or idea for the epic")
 	cmd.Flags().StringVar(&tool, "tool", "", "Override planning tool (claude or opencode)")
+	cmd.Flags().StringVar(&rigName, "rig", "", "Rig name to open for planning")
 
 	return cmd
+}
+
+func resolveRigDir(rigName string, fallback string) (string, error) {
+	if rigName == "" {
+		return fallback, nil
+	}
+
+	loadedRig, err := rig.LoadRig(rigName)
+	if err != nil {
+		return "", fmt.Errorf("%s", rig.UserMessage(err))
+	}
+	if loadedRig.LocalPath == "" {
+		return "", fmt.Errorf("rig %q has no local path", loadedRig.Name)
+	}
+	info, err := os.Stat(loadedRig.LocalPath)
+	if err != nil {
+		return "", fmt.Errorf("open rig %q: %w", loadedRig.Name, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("rig %q path %q is not a directory", loadedRig.Name, loadedRig.LocalPath)
+	}
+
+	return loadedRig.LocalPath, nil
 }

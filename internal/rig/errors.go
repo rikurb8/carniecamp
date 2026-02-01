@@ -70,6 +70,10 @@ func EnsureRigPathAvailable(path string) error {
 }
 
 func UserMessage(err error) string {
+	if errors.Is(err, ErrRigNotFound) {
+		return "Rig not found in registry. Add it with `bordertown rig add`."
+	}
+
 	var exists RigAlreadyExistsError
 	if errors.As(err, &exists) {
 		return fmt.Sprintf("Rig %q already exists. Choose a different name or remove it from the registry.", exists.Name)

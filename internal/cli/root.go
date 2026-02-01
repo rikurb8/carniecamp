@@ -27,6 +27,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newDashboardCommand())
 	rootCmd.AddCommand(newTownCommand())
 	rootCmd.AddCommand(newMayorCommand())
+	rootCmd.AddCommand(newRigCommand())
 
 	return rootCmd
 }

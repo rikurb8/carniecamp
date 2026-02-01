@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rikurb8/bordertown/internal/rig"
 )
 
 func setupBeadsDir(t *testing.T, content string) string {
@@ -236,5 +238,47 @@ func TestMayorReviewNoBeadsDirectory(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "find beads") {
 		t.Errorf("expected 'find beads' error, got: %v", err)
+	}
+}
+
+func TestMayorReviewWithRigFlag(t *testing.T) {
+	content := `{"id":"epic-1","title":"Rig Epic","status":"open","issue_type":"epic","description":"Long enough description for planning"}`
+
+	rigDir := setupBeadsDir(t, content)
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+
+	t.Setenv("HOME", homeDir)
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir work dir: %v", err)
+	}
+
+	if err := rig.SaveRegistry(&rig.Registry{
+		Rigs: []rig.Rig{
+			{
+				Name:      "alpha",
+				Remote:    "git@github.com:example/alpha.git",
+				LocalPath: rigDir,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("save registry: %v", err)
+	}
+
+	root := NewRootCommand()
+	output := &bytes.Buffer{}
+	root.SetOut(output)
+	root.SetErr(output)
+	root.SetArgs([]string{"mayor", "review", "--rig", "alpha"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	result := output.String()
+	if !strings.Contains(result, "Rig Epic") {
+		t.Error("expected output to contain rig epic title")
 	}
 }
