@@ -12,7 +12,7 @@
 
 ## What is this?
 
-Carnie is a observable and opinionated agent orchestration system with sane defaults installed inside your project. It brings a crew of helpers into your repo, keeps their work tracked, and helps with project management (and much more).
+Carnie is a opinionated agent orchestration system with sane defaults installed inside your project. It brings a crew of helpers into your repo, keeps their work tracked, and helps with project management (and much more).
 
 ## Quick Start
 
@@ -64,15 +64,6 @@ The Carnie autonomously works through tasks, creating new Beads for side-tracks 
 - `carnie status` - Show project details and beads summary
 - `carnie dashboard` - Launch full-screen beads dashboard
 
-## Why Carnie?
-
-| Challenge                      | Carnie Solution                              |
-| ------------------------------ | -------------------------------------------- |
-| Agents lose context on restart | Work persists in git-backed hooks            |
-| Manual agent coordination      | Built-in mailboxes, identities, and handoffs |
-| Easier project management      | Opinionated way of managing work             |
-| Scary to run YOLO agents       | Carnie runs a safer show                     |
-
 ## Core Concepts
 
 ### The Operator 🎛️
@@ -91,9 +82,9 @@ Randy the Operator is your main interface to Carnie Camp. He helps you plan work
 
 Your project-local workspace created with `carnie init`. The `.carniecamp/` directory contains:
 
-- `carniecamp.db` - Work tracking database
 - `camp.yml` - Configuration for tools, preferences, and project settings
 - Other relevant content (git-tracked except explicitly .gitignored)
+- In the future: `carniecamp.db` - Store executed workflow data
 
 Example `camp.yml`:
 
