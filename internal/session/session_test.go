@@ -194,3 +194,42 @@ func TestBuildToolCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestCommand(t *testing.T) {
+	tests := []struct {
+		name string
+		opts Options
+		want string
+	}{
+		{
+			name: "claude interactive",
+			opts: Options{
+				Tool:         ToolClaude,
+				Model:        "openai/gpt-5.2-codex",
+				SystemPrompt: "system",
+				Prompt:       "user",
+				Interactive:  true,
+			},
+			want: `claude --model openai/gpt-5.2-codex --system-prompt system`,
+		},
+		{
+			name: "opencode non-interactive",
+			opts: Options{
+				Tool:         ToolOpencode,
+				Model:        "openai/gpt-5.2-codex",
+				SystemPrompt: "system",
+				Prompt:       "hello world",
+			},
+			want: `opencode --model openai/gpt-5.2-codex --prompt system -p "hello world"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Command(tt.opts)
+			if got != tt.want {
+				t.Errorf("Command() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

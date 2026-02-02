@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/rikurb8/carnie/internal/beads"
 	"github.com/rikurb8/carnie/internal/cli/bd"
 )
 
@@ -52,14 +52,14 @@ func fetchIssuesFromBeads(limit int) ([]Issue, []Issue, []Issue, []Issue, error)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("get working directory: %w", err)
 	}
-	root, err := beads.FindBeadsRoot(cwd)
+	root, err := findBeadsRoot(cwd)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("find beads: %w", err)
 	}
 	if err := exportBeadsJSONL(root); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	issues, err := beads.LoadIssues(root)
+	issues, err := loadIssues(root)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("load beads issues: %w", err)
 	}
@@ -83,7 +83,7 @@ func fetchIssuesFromBeads(limit int) ([]Issue, []Issue, []Issue, []Issue, error)
 }
 
 func exportBeadsJSONL(root string) error {
-	output := filepath.Join(root, beads.BeadsDir, beads.IssuesFile)
+	output := filepath.Join(root, beadsDir, beadsIssuesFile)
 	command := exec.Command("bd", "export", "-o", output, "-q")
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("bd export failed: %w", err)
@@ -91,8 +91,8 @@ func exportBeadsJSONL(root string) error {
 	return nil
 }
 
-func filterIssuesByStatus(issues []beads.Issue, status string) []beads.Issue {
-	filtered := make([]beads.Issue, 0, len(issues))
+func filterIssuesByStatus(issues []beadIssue, status string) []beadIssue {
+	filtered := make([]beadIssue, 0, len(issues))
 	for _, issue := range issues {
 		if issue.Status != status {
 			continue
@@ -102,14 +102,14 @@ func filterIssuesByStatus(issues []beads.Issue, status string) []beads.Issue {
 	return filtered
 }
 
-func applyIssueLimit(issues []beads.Issue, limit int) []beads.Issue {
+func applyIssueLimit(issues []beadIssue, limit int) []beadIssue {
 	if limit <= 0 || len(issues) <= limit {
 		return issues
 	}
 	return issues[:limit]
 }
 
-func mapBeadsIssues(issues []beads.Issue) []Issue {
+func mapBeadsIssues(issues []beadIssue) []Issue {
 	output := make([]Issue, 0, len(issues))
 	for _, issue := range issues {
 		deps := make([]Dependency, 0, len(issue.Dependencies))
@@ -251,6 +251,84 @@ func containsID(ids []string, id string) bool {
 		}
 	}
 	return false
+}
+
+const (
+	beadsDir        = ".beads"
+	beadsIssuesFile = "issues.jsonl"
+)
+
+type beadIssue struct {
+	ID           string           `json:"id"`
+	Title        string           `json:"title"`
+	Description  string           `json:"description"`
+	Status       string           `json:"status"`
+	Priority     int              `json:"priority"`
+	IssueType    string           `json:"issue_type"`
+	Owner        string           `json:"owner"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+	Dependencies []beadDependency `json:"dependencies,omitempty"`
+}
+
+type beadDependency struct {
+	IssueID     string    `json:"issue_id"`
+	DependsOnID string    `json:"depends_on_id"`
+	Type        string    `json:"type"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func loadIssues(rootDir string) ([]beadIssue, error) {
+	path := filepath.Join(rootDir, beadsDir, beadsIssuesFile)
+	return loadIssuesFromFile(path)
+}
+
+func loadIssuesFromFile(path string) ([]beadIssue, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open issues file: %w", err)
+	}
+	defer file.Close()
+
+	var issues []beadIssue
+	scanner := bufio.NewScanner(file)
+
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var issue beadIssue
+		if err := json.Unmarshal([]byte(line), &issue); err != nil {
+			return nil, fmt.Errorf("parse issue at line %d: %w", lineNum, err)
+		}
+		issues = append(issues, issue)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read issues file: %w", err)
+	}
+
+	return issues, nil
+}
+
+func findBeadsRoot(startDir string) (string, error) {
+	dir := startDir
+	for {
+		beadsPath := filepath.Join(dir, beadsDir)
+		if info, err := os.Stat(beadsPath); err == nil && info.IsDir() {
+			return dir, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("no %s directory found", beadsDir)
+		}
+		dir = parent
+	}
 }
 
 func buildDrawerEntries(column issueColumn, collapsed map[string]bool) []drawerEntry {

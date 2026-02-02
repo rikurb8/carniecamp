@@ -27,9 +27,6 @@ func (m Model) View() string {
 	if m.showHelp {
 		output = renderHelpOverlay(output, inner, styles)
 	}
-	if m.showImprover {
-		output = renderImproverOverlay(output, inner, styles)
-	}
 	if m.width > 2 && m.height > 2 {
 		return renderTentFrame(output, footer, styles, m.width, m.height)
 	}
@@ -229,7 +226,6 @@ func renderHomeView(m Model, styles dashboardStyles) string {
 		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("tab") + tipStyle.Render(" Switch columns ") + goldColor.Render("│"),
 		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("</>") + tipStyle.Render(" Collapse/expand") + goldColor.Render("│"),
 		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("r") + tipStyle.Render("   Refresh        ") + goldColor.Render("│"),
-		goldColor.Render("  │") + tipStyle.Render(" ") + keyStyle.Render("o") + tipStyle.Render("   Improver       ") + goldColor.Render("│"),
 		goldColor.Render("  └───────────────────────┘"),
 		"",
 		starStyle.Render(" *") + dimStyle.Render(" The show is about to begin! ") + starStyle.Render("*"),
@@ -433,7 +429,7 @@ func renderPanel(title string, lines []string, width int, height int, styles das
 }
 
 func renderDashboardFooter() string {
-	return "1/2 views  h/? help  o improve  tab switch  j/k move  left/right collapse  r refresh  q quit"
+	return "1/2 views  h/? help  tab switch  j/k move  left/right collapse  r refresh  q quit"
 }
 
 func renderHelpOverlay(base string, m Model, styles dashboardStyles) string {
@@ -451,7 +447,7 @@ func renderHelpOverlay(base string, m Model, styles dashboardStyles) string {
 		dialogWidth = width
 	}
 
-	keysLine := fmt.Sprintf("%-6s %s", "Keys:", "q quit  o improve  tab switch section  j/k move  left/right collapse  r refresh  h/? close")
+	keysLine := fmt.Sprintf("%-6s %s", "Keys:", "q quit  tab switch section  j/k move  left/right collapse  r refresh  h/? close")
 	tipsLine := fmt.Sprintf("%-6s %s", "Tips:", "Use left/right to fold epics; tab switches Future/Completed; j/k moves selection.")
 	help := []string{
 		styles.helpTitle.Render("Dashboard Help"),
@@ -462,59 +458,6 @@ func renderHelpOverlay(base string, m Model, styles dashboardStyles) string {
 
 	box := styles.helpBox.Width(dialogWidth).Render(lipgloss.JoinVertical(lipgloss.Left, help...))
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
-}
-
-func renderImproverOverlay(base string, m Model, styles dashboardStyles) string {
-	width := m.width
-	height := m.height
-	if width <= 0 || height <= 0 {
-		return base
-	}
-
-	dialogWidth := minInt(width-6, 80)
-	if dialogWidth < 50 {
-		dialogWidth = minInt(width-2, 50)
-	}
-	if dialogWidth < 20 {
-		dialogWidth = width
-	}
-	selected := m.selectedIssue()
-	issueLine := "No issue selected"
-	if selected != nil {
-		issueLine = fmt.Sprintf("%s %s", selected.ID, selected.Title)
-	}
-	lines := []string{
-		styles.helpTitle.Render("Epic Improver / Task Splitter"),
-		styles.dimText.Render("Enter to launch opencode  |  esc close"),
-		"",
-		styles.panelTitle.Render("Active Issue"),
-		styles.helpText.Render(truncateASCII(issueLine, dialogWidth-4)),
-		"",
-		styles.panelTitle.Render("Optional Instructions"),
-		m.improveInput.View(),
-	}
-
-	box := styles.helpBox.Width(dialogWidth).Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
-}
-
-func (m *Model) applyImproverLayout() {
-	width := m.width
-	if width <= 0 {
-		return
-	}
-	dialogWidth := minInt(width-6, 80)
-	if dialogWidth < 50 {
-		dialogWidth = minInt(width-2, 50)
-	}
-	if dialogWidth < 20 {
-		dialogWidth = width
-	}
-	innerWidth := dialogWidth - 4
-	if innerWidth < 10 {
-		innerWidth = 10
-	}
-	m.improveInput.Width = innerWidth
 }
 
 func renderTentFrame(content string, footer string, styles dashboardStyles, width int, height int) string {

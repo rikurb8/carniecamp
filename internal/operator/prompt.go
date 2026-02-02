@@ -1,9 +1,20 @@
-package prompts
+package operator
 
-// EpicPlanningPrompt is the system prompt for guiding epic planning sessions.
-// It instructs the AI to help users think through, refine, and create well-structured
-// epics with tasks using beads commands.
-const EpicPlanningPrompt = `You are an expert software project planner helping to define and break down a new epic.
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/rikurb8/carnie/internal/config"
+)
+
+const (
+	defaultPromptDir        = ".carnie/prompts"
+	defaultEpicPlanningFile = "epic-planning.md"
+)
+
+const epicPlanningPrompt = `You are an expert software project planner helping to define and break down a new epic.
 
 ## Your Role
 
@@ -84,11 +95,56 @@ When presenting the final plan, format it clearly:
 
 Ask the user to confirm before running any commands.`
 
-// EpicPlanningInitialPrompt returns an initial prompt to start the planning session.
-// If title is provided, it includes context about what the user wants to plan.
-func EpicPlanningInitialPrompt(title string) string {
+func epicPlanningInitialPrompt(title string) string {
 	if title == "" {
 		return "I'd like to plan a new epic. Help me think through and break down the work."
 	}
 	return "I'd like to plan a new epic: " + title + ". Help me think through and break down the work into tasks."
+}
+
+func loadEpicPlanningPrompt(workDir string, configuredPath string) string {
+	if configuredPath != "" {
+		path := configuredPath
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(workDir, path)
+		}
+		if content, err := os.ReadFile(path); err == nil {
+			return string(content)
+		}
+	}
+
+	defaultPath := filepath.Join(workDir, defaultPromptDir, defaultEpicPlanningFile)
+	if content, err := os.ReadFile(defaultPath); err == nil {
+		return string(content)
+	}
+
+	return epicPlanningPrompt
+}
+
+func buildSystemPromptWithBase(campCfg *config.CampConfig, basePrompt string) string {
+	contextSection := formatContextSection(campCfg)
+	return contextSection + basePrompt
+}
+
+func formatContextSection(campCfg *config.CampConfig) string {
+	if campCfg == nil {
+		return ""
+	}
+	if campCfg.Name == "" && campCfg.Description == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Project Context\n\n")
+
+	if campCfg.Name != "" {
+		fmt.Fprintf(&sb, "**Project:** %s\n", campCfg.Name)
+		if campCfg.Description != "" {
+			fmt.Fprintf(&sb, "**Description:** %s\n", campCfg.Description)
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n---\n\n")
+	return sb.String()
 }

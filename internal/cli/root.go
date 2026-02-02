@@ -23,8 +23,6 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.carnie.yaml)")
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.AddCommand(newDummyCommand())
-	rootCmd.AddCommand(newStatusCommand())
 	rootCmd.AddCommand(dashboard.NewCommand())
 	rootCmd.AddCommand(newCampCommand())
 	rootCmd.AddCommand(newOperatorCommand())

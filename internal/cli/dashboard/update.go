@@ -1,12 +1,10 @@
 package dashboard
 
 import (
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/rikurb8/carnie/internal/cli/agents"
 )
 
 func (m Model) Init() tea.Cmd {
@@ -22,15 +20,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = typed.Width
 		m.height = typed.Height
-		if m.showImprover {
-			m.applyImproverLayout()
-		}
 		m.applyDrawerLayout()
 		return m, nil
 	case tea.KeyMsg:
-		if m.showImprover {
-			return m, m.updateImproverInput(typed)
-		}
 		if m.showHelp {
 			switch typed.String() {
 			case "h", "esc":
@@ -46,12 +38,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "h", "?":
 			m.showHelp = !m.showHelp
-			return m, nil
-		case "o":
-			m.showImprover = true
-			m.improveInput.SetValue("")
-			m.improveInput.Focus()
-			m.applyImproverLayout()
 			return m, nil
 		case "left":
 			m.setCollapseForSelected(true)
@@ -101,13 +87,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		drawerWidth, _, _, _ := drawerLayout(m.width, m.height)
 		innerWidth := maxInt(1, drawerWidth-2)
 		m.refreshDrawerLists(true, innerWidth)
-		return m, nil
-	case agents.ImproverSessionMsg:
-		if typed.Err != nil {
-			m.errMessage = typed.Err.Error()
-			return m, nil
-		}
-		m.errMessage = ""
 		return m, nil
 	case spinner.TickMsg:
 		var cmds []tea.Cmd
@@ -176,40 +155,4 @@ func (m Model) selectedIssue() *Issue {
 	}
 	issue := entry.Entry.Issue
 	return &issue
-}
-
-func (m *Model) updateImproverInput(msg tea.KeyMsg) tea.Cmd {
-	switch msg.String() {
-	case "esc":
-		m.showImprover = false
-		m.improveInput.Blur()
-		return nil
-	case "ctrl+c", "q":
-		return tea.Quit
-	case "enter":
-		selected := m.selectedIssue()
-		if selected == nil {
-			m.errMessage = "Select an issue to improve"
-			return nil
-		}
-		instructions := strings.TrimSpace(m.improveInput.Value())
-		m.showImprover = false
-		m.improveInput.Blur()
-		return agents.CreateImproverSessionCmd(toAgentIssue(*selected), instructions)
-	}
-	var cmd tea.Cmd
-	m.improveInput, cmd = m.improveInput.Update(msg)
-	return cmd
-}
-
-func toAgentIssue(issue Issue) agents.Issue {
-	return agents.Issue{
-		ID:          issue.ID,
-		Title:       issue.Title,
-		Description: issue.Description,
-		Status:      issue.Status,
-		Priority:    issue.Priority,
-		IssueType:   issue.IssueType,
-		Owner:       issue.Owner,
-	}
 }

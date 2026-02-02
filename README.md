@@ -18,13 +18,10 @@ Carnie is a opinionated agent orchestration system with sane defaults installed 
 
 ```bash
 # Initialize Carnie Camp in your project
-carnie init
+carnie camp init
 
-# Talk to Randy the Operator
+# Print the operator command
 carnie operator
-
-# Check project status and beads
-carnie status
 
 # View the beads dashboard
 carnie dashboard
@@ -34,34 +31,12 @@ carnie dashboard
 
 ### Planning with Randy
 
-Talk to Randy naturally - be as vague or specific as you want:
-
-```bash
-carnie operator
-> "Let's add user authentication"
-> "We need to improve the dashboard performance"
-> "What should we work on next?"
-```
-
-Randy will help expand your ideas into structured Beads with proper hierarchy and dependencies.
-
-### Executing Work
-
-Once Beads are created, assign them to Carnies:
-
-```bash
-# Randy assigns epic/feature to a Carnie
-# Carnie opens in a tmux session and starts working through tasks
-# You can monitor progress via status or dashboard
-```
-
-The Carnie autonomously works through tasks, creating new Beads for side-tracks or blockers, and notifies Randy when complete.
+Run `carnie operator` to print a ready-to-paste command. Paste it in your terminal to start the operator planning session.
 
 ## CLI Commands
 
-- `carnie init` - Initialize Carnie Camp in your project
-- `carnie operator` - Talk to Randy the Operator
-- `carnie status` - Show project details and beads summary
+- `carnie camp init` - Initialize Carnie Camp in your project
+- `carnie operator` - Print the operator command
 - `carnie dashboard` - Launch full-screen beads dashboard
 
 ## Core Concepts
@@ -73,17 +48,14 @@ Randy the Operator is your main interface to Carnie Camp. He helps you plan work
 **What Randy can do:**
 
 - Break down ideas into structured Beads (epic → feature → task → subtask hierarchy)
-- Create and manage dependencies between Beads
-- Assign work to Carnies (agent workers)
-- Provide overviews of existing work
-- Answer questions about the project
+- Suggest dependencies between Beads
+- Draft the exact `bd` commands to run
 
 ### Camp 🏕️
 
-Your project-local workspace created with `carnie init`. The `.carniecamp/` directory contains:
+Your project-local workspace created with `carnie camp init`. The `camp.yml` file contains:
 
 - `camp.yml` - Configuration for tools, preferences, and project settings
-- Other relevant content (git-tracked except explicitly .gitignored)
 - In the future: `carniecamp.db` - Store executed workflow data
 
 Example `camp.yml`:
@@ -125,16 +97,13 @@ Beads can have dependencies and are tracked through their lifecycle.
 
 ### Carnies 🎪
 
-Carnies are the workers - Opencode/Claude Code tmux sessions with primed context. When assigned work, they:
+Carnies are the workers - Opencode/Claude Code sessions with primed context. When assigned work, they:
 
 1. Claim tasks (mark as in-progress)
 2. Complete the work
 3. Track new ideas or blockers encountered
 4. Mark tasks as completed
 5. Move to the next task
-6. Send mail when all related work is done
-
-Randy receives notifications when work is completed and can take actions like code review or merging.
 
 See `docs/CAMP.md` and `docs/OPERATOR.md` for details.
 

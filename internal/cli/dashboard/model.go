@@ -5,7 +5,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rikurb8/carnie/internal/cli/bd"
 )
@@ -70,8 +69,6 @@ type Model struct {
 	summary      bd.StatusSummary
 	errMessage   string
 	showHelp     bool
-	showImprover bool
-	improveInput textinput.Model
 	collapsed    map[string]bool
 	lists        []list.Model
 	homeSpinners []spinner.Model
@@ -83,10 +80,6 @@ type drawerEntry struct {
 }
 
 func NewModel(refresh time.Duration, limit int) Model {
-	improve := textinput.New()
-	improve.Placeholder = "Optional instructions"
-	improve.Prompt = ""
-	improve.CharLimit = 500
 	styles := newDashboardStyles()
 	delegate := newDrawerDelegate(styles, 1)
 	futureList := newDrawerList(delegate)
@@ -111,10 +104,9 @@ func NewModel(refresh time.Duration, limit int) Model {
 	}
 
 	return Model{
-		refresh:      refresh,
-		limit:        limit,
-		collapsed:    map[string]bool{},
-		improveInput: improve,
+		refresh:   refresh,
+		limit:     limit,
+		collapsed: map[string]bool{},
 		columns: []issueColumn{
 			{Title: "Future Work"},
 			{Title: "Completed Work"},

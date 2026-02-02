@@ -1,12 +1,8 @@
 package session
 
 import (
-	"fmt"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // Tool represents the CLI tool to use for sessions.
@@ -29,101 +25,13 @@ func ParseTool(s string) Tool {
 	}
 }
 
-// Options configures how a session is spawned.
+// Options configures how a session command is built.
 type Options struct {
 	Tool         Tool
 	Model        string // Model for the tool
 	Prompt       string // Initial prompt/message to send
 	SystemPrompt string // System prompt (for claude)
-	WorkDir      string // Working directory
-	Interactive  bool   // Attach to tmux session for interactive use
-	SessionName  string // Tmux session name (auto-generated if empty)
-}
-
-// Spawn starts a new CLI session in tmux with the given options.
-// If Interactive is true, attaches to the tmux session.
-// Returns when the user detaches or the session exits.
-func Spawn(opts Options) error {
-	normalizedOpts, err := normalizeOptions(opts)
-	if err != nil {
-		return err
-	}
-
-	// Check tmux is available
-	if !TmuxAvailable() {
-		return fmt.Errorf("tmux is not installed or not in PATH")
-	}
-
-	createArgs := buildCreateArgs(normalizedOpts)
-
-	createCmd := exec.Command("tmux", createArgs...)
-	if err := createCmd.Run(); err != nil {
-		return fmt.Errorf("create tmux session: %w", err)
-	}
-
-	if normalizedOpts.Interactive && normalizedOpts.Prompt != "" {
-		// Give the tool a moment to start before sending input.
-		time.Sleep(200 * time.Millisecond)
-		if err := sendInitialPrompt(normalizedOpts.SessionName, normalizedOpts.Prompt); err != nil {
-			return fmt.Errorf("send initial prompt: %w", err)
-		}
-	}
-
-	if normalizedOpts.Interactive {
-		// Attach to the session
-		attachCmd := exec.Command("tmux", "attach-session", "-t", normalizedOpts.SessionName)
-		attachCmd.Stdin = os.Stdin
-		attachCmd.Stdout = os.Stdout
-		attachCmd.Stderr = os.Stderr
-
-		if err := attachCmd.Run(); err != nil {
-			// Session may have ended, which is fine
-			if !strings.Contains(err.Error(), "exit status") {
-				return fmt.Errorf("attach to session: %w", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// SpawnCommand returns the tmux command used to create the session.
-func SpawnCommand(opts Options) (string, error) {
-	normalizedOpts, err := normalizeOptions(opts)
-	if err != nil {
-		return "", err
-	}
-
-	createArgs := buildCreateArgs(normalizedOpts)
-	return formatCommand("tmux", createArgs), nil
-}
-
-func normalizeOptions(opts Options) (Options, error) {
-	if opts.WorkDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return Options{}, fmt.Errorf("get working directory: %w", err)
-		}
-		opts.WorkDir = cwd
-	}
-
-	if opts.SessionName == "" {
-		opts.SessionName = fmt.Sprintf("cn-%s-%d", opts.Tool, time.Now().Unix())
-	}
-
-	return opts, nil
-}
-
-func buildCreateArgs(opts Options) []string {
-	toolCmd := buildToolCommand(opts)
-	createArgs := []string{
-		"new-session",
-		"-d",                   // detached
-		"-s", opts.SessionName, // session name
-		"-c", opts.WorkDir, // working directory
-	}
-
-	return append(createArgs, toolCmd...)
+	Interactive  bool   // When true, do not send the prompt as a one-shot
 }
 
 // NormalizeModel ensures a model string is compatible with the tool.
@@ -141,6 +49,15 @@ func NormalizeModel(tool Tool, model string) string {
 	}
 
 	return model
+}
+
+// Command returns the command line to start the tool with the given options.
+func Command(opts Options) string {
+	toolCmd := buildToolCommand(opts)
+	if len(toolCmd) == 0 {
+		return ""
+	}
+	return formatCommand(toolCmd[0], toolCmd[1:])
 }
 
 func formatCommand(name string, args []string) string {
@@ -167,7 +84,7 @@ func quoteArg(arg string) string {
 	return arg
 }
 
-// buildToolCommand returns the command and args to run inside tmux.
+// buildToolCommand returns the command and args to run the tool.
 func buildToolCommand(opts Options) []string {
 	switch opts.Tool {
 	case ToolOpencode:
@@ -215,43 +132,4 @@ func buildOpencodeArgs(opts Options) []string {
 	}
 
 	return args
-}
-
-func sendInitialPrompt(sessionName, prompt string) error {
-	cmd := exec.Command("tmux", "send-keys", "-t", sessionName, prompt, "C-m")
-	return cmd.Run()
-}
-
-// Available checks if the specified tool is available on the system.
-func Available(tool Tool) bool {
-	var name string
-	switch tool {
-	case ToolClaude:
-		name = "claude"
-	case ToolOpencode:
-		name = "opencode"
-	default:
-		return false
-	}
-
-	_, err := exec.LookPath(name)
-	return err == nil
-}
-
-// TmuxAvailable checks if tmux is available on the system.
-func TmuxAvailable() bool {
-	_, err := exec.LookPath("tmux")
-	return err == nil
-}
-
-// SessionExists checks if a tmux session with the given name exists.
-func SessionExists(name string) bool {
-	cmd := exec.Command("tmux", "has-session", "-t", name)
-	return cmd.Run() == nil
-}
-
-// KillSession kills a tmux session by name.
-func KillSession(name string) error {
-	cmd := exec.Command("tmux", "kill-session", "-t", name)
-	return cmd.Run()
 }

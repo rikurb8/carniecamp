@@ -1,65 +1,27 @@
 # Operator Command
 
-The `operator` command provides project oversight and planning tools for your Carnie workspace.
+The `operator` command prints a ready-to-paste command for starting an operator planning session.
 Alias: `op`
 
 ## Quick Start
 
 ```bash
-# Start planning a new epic
-carnie operator new-epic
-
-# Alias
-carnie operator plan-epic
-
-# Plan with an initial idea
-carnie operator new-epic --title "User authentication"
-
-# Review epics and planning status
-carnie operator review
-
-# Shortcut
-carnie op review
-
-# Include closed epics and issues
-carnie operator review --all
+carnie operator
 ```
 
-## Commands
+Paste the printed command into your terminal to start the session.
 
-### `operator new-epic`
+## Behavior
 
-Spawns an interactive AI session in tmux to help you plan, refine, and create a new epic with tasks.
+- Builds a command for `opencode` or `claude` based on `camp.yml`
+- Injects project context and the planning prompt
+- Prints the command only (no tmux, no auto-spawn)
 
-Alias: `operator plan-epic`
+## Requirements
 
-**What it does:**
+- `opencode` or `claude` must be installed
 
-1. Creates a tmux session with the AI tool (claude or opencode)
-2. Asks clarifying questions about scope, goals, and constraints
-3. Helps break down the work into actionable tasks
-4. Identifies dependencies between tasks
-5. Suggests priorities (P0-P4)
-6. Creates the epic and tasks using `bd` commands
-
-**Flags:**
-
-- `--title, -t` - Initial title or idea for the epic
-- `--tool` - Override planning tool (`claude` or `opencode`)
-
-**Tmux Session:**
-
-The session runs in tmux, so you can:
-- Detach with `Ctrl+B, D` and return later
-- Reattach with `tmux attach -t cn-epic-planning`
-- The session persists even if your terminal disconnects
-
-**Requirements:**
-
-- `tmux` must be installed
-- `claude` or `opencode` must be installed
-
-**Configuration (camp.yml):**
+## Configuration (camp.yml)
 
 ```yaml
 operator:
@@ -70,7 +32,7 @@ operator:
 
 Model values use the `<provider>/<model>` format (e.g., `openai/gpt-5.2-codex`).
 
-**Custom Prompts:**
+## Custom Prompts
 
 You can customize the planning prompt by creating a file at:
 - Configured path in `camp.yml` under `operator.planning_prompt_file`
@@ -78,75 +40,7 @@ You can customize the planning prompt by creating a file at:
 
 If no custom prompt exists, the built-in default is used.
 
-**Context Injection:**
+## Context Injection
 
 The planning session automatically receives context about:
 - Project name and description (from `camp.yml`)
-- Existing epics and their status (from beads)
-
-This helps the AI make suggestions aligned with your existing work.
-
----
-
-### `operator review`
-
-Analyzes your beads issues grouped by epic and indicates which epics need more planning.
-
-**Output includes:**
-
-- All open epics with their child tasks
-- Task counts (open/closed) per epic
-- Planning warnings for epics that need attention
-- Orphan issues not linked to any epic
-
-**Flags:**
-
-- `--all` - Include closed epics and issues in the output
-
-**Example output:**
-
-```
-Operator Review
-
-○ cn-abc - Feature Implementation
-  Tasks: 2 open, 1 closed
-    ○ cn-def - Implement core logic
-    ○ cn-ghi - Add tests
-    ● cn-jkl - Design API
-
-○ cn-xyz - Another Epic
-  Tasks: 0 open, 0 closed
-  ⚠ Needs planning: no tasks defined, description is brief
-
-Orphan Issues (no epic)
-  ○ cn-123 [task] - Standalone task
-```
-
-## How Epic Grouping Works
-
-Issues are grouped by epic using dependencies:
-
-1. An issue belongs to an epic if **the epic depends on it** (the issue blocks the epic)
-2. Issues not linked to any epic appear in the "Orphan Issues" section
-
-To link a task to an epic:
-```bash
-bd dep add <epic-id> <task-id>
-```
-
-## Planning Indicators
-
-The `review` command flags epics that may need more planning:
-
-| Warning | Meaning |
-|---------|---------|
-| "no tasks defined" | Epic has no linked tasks |
-| "only has 1-2 tasks" | Epic may be under-planned |
-| "description is brief" | Epic description is less than 50 characters |
-| "all tasks complete but epic still open" | Consider closing the epic |
-
-## Symbols
-
-- `○` Open issue
-- `●` Closed issue
-- `⚠` Warning/needs attention
