@@ -2,7 +2,7 @@ package templates
 
 import "embed"
 
-//go:embed operator.md carnie.md
+//go:embed operator.md carnie.md issue-to-beads.md.tmpl
 var FS embed.FS
 
 // Load reads an embedded template file by name.

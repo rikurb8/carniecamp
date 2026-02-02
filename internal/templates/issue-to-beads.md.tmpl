@@ -1,0 +1,68 @@
+# Issue to Beads: Task Planning
+
+You are converting a GitHub issue into beads (tasks/features/epics).
+
+**IMPORTANT**: Do NOT ask clarifying questions. Analyze the issue and create a complete plan based on the information provided. Present your plan to the user when finished.
+
+## GitHub Issue #{{.Number}}: {{.Title}}
+
+**State:** {{.State}}
+**Author:** {{.Author.Name}} ({{.Author.Login}})
+**URL:** {{.URL}}
+**Created:** {{.CreatedAt.Format "2006-01-02"}}
+{{if .Labels}}**Labels:** {{range $i, $l := .Labels}}{{if $i}}, {{end}}{{$l.Name}}{{end}}{{end}}
+{{if .Milestone}}**Milestone:** {{.Milestone.Title}}{{end}}
+{{if .Assignees}}**Assignees:** {{range $i, $a := .Assignees}}{{if $i}}, {{end}}{{$a.Login}}{{end}}{{end}}
+
+### Body
+
+{{.Body}}
+{{if .Comments}}
+### Comments ({{len .Comments}})
+{{range .Comments}}
+**{{.Author.Login}}** ({{.CreatedAt.Format "2006-01-02"}}):
+{{.Body}}
+{{end}}{{end}}
+
+---
+
+## Your Task
+
+1. **Analyze** the issue above - understand the goal, scope, and requirements
+2. **Break down** the work into actionable tasks:
+   - Each task should be completable in a single session
+   - Tasks should be clear enough for someone else to pick up
+3. **Determine hierarchy** based on complexity:
+   - Simple (1-3 tasks): Just create tasks
+   - Medium (4-7 tasks): Create a feature with tasks
+   - Large (8+ tasks or multiple features): Create an epic with features and tasks
+4. **Identify dependencies** - which tasks block others
+5. **Assign priorities** (P0=critical, P1=high, P2=medium, P3=low, P4=backlog)
+
+## Output Format
+
+Present your plan as:
+
+### Summary
+One paragraph describing what this issue accomplishes.
+
+### Work Breakdown
+List all items with:
+- Type (epic/feature/task)
+- Title
+- Priority
+- Brief description
+- Dependencies (if any)
+
+### Commands
+The exact `bd` commands to create everything:
+
+```bash
+# Create items
+bd create --title="..." --type=... --priority=...
+
+# Set dependencies (task depends on dependency)
+bd dep add <task-id> <dependency-id>
+```
+
+Wait for user confirmation before running any commands.

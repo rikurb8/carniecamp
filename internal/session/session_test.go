@@ -220,7 +220,7 @@ func TestCommand(t *testing.T) {
 				SystemPrompt: "system",
 				Prompt:       "hello world",
 			},
-			want: `opencode --model openai/gpt-5.2-codex --prompt system -p "hello world"`,
+			want: `opencode --model openai/gpt-5.2-codex --prompt system -p $'hello world'`,
 		},
 	}
 

@@ -1,7 +1,6 @@
 package session
 
 import (
-	"strconv"
 	"strings"
 )
 
@@ -74,14 +73,42 @@ func quoteArg(arg string) string {
 		return `""`
 	}
 
+	needsQuoting := false
 	for _, r := range arg {
 		switch r {
-		case ' ', '\t', '\n', '"', '\'', '\\', '$', '`':
-			return strconv.Quote(arg)
+		case ' ', '\t', '\n', '"', '\'', '\\', '$', '`', '>', '<', '|', '&', ';', '(', ')', '*', '?', '[', ']', '#', '~':
+			needsQuoting = true
 		}
 	}
 
-	return arg
+	if !needsQuoting {
+		return arg
+	}
+
+	// Use $'...' syntax for shell-compatible escaping
+	return "$'" + shellEscape(arg) + "'"
+}
+
+// shellEscape escapes a string for use in $'...' shell quoting
+func shellEscape(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case '\'':
+			b.WriteString("\\'")
+		case '\\':
+			b.WriteString("\\\\")
+		case '\n':
+			b.WriteString("\\n")
+		case '\t':
+			b.WriteString("\\t")
+		case '\r':
+			b.WriteString("\\r")
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // buildToolCommand returns the command and args to run the tool.
