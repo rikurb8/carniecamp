@@ -26,6 +26,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newCampCommand())
 	rootCmd.AddCommand(newOperatorCommand())
 	rootCmd.AddCommand(newPrimeCommand())
+	rootCmd.AddCommand(newWorkOrderCommand())
 
 	return rootCmd
 }

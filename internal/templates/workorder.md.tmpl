@@ -1,0 +1,30 @@
+# Work Order {{.WorkOrder.ID}}: {{.WorkOrder.Title}}
+
+{{.RolePrompt}}
+
+---
+
+## Work Order Details
+
+- Status: {{.WorkOrder.Status}}
+{{- if .WorkOrder.BeadID }}
+- Bead: {{.WorkOrder.BeadID}}{{if .BeadTitle}} — {{.BeadTitle}}{{end}}
+{{- end }}
+{{- if .BeadDescription }}
+- Bead Description: {{.BeadDescription}}
+{{- end }}
+
+## Instructions
+
+{{.WorkOrder.Description}}
+
+{{- if .ProjectName }}
+---
+
+## Project Context
+
+**Project:** {{.ProjectName}}
+{{- if .ProjectDescription }}
+**Description:** {{.ProjectDescription}}
+{{- end }}
+{{- end }}

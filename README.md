@@ -38,6 +38,7 @@ Run `carnie operator` to print a ready-to-paste command. Paste it in your termin
 - `carnie camp init` - Initialize Carnie Camp in your project
 - `carnie operator` - Print the operator command
 - `carnie dashboard` - Launch full-screen beads dashboard
+- `carnie workorder` - Create and manage work orders
 
 ## Core Concepts
 
@@ -57,6 +58,7 @@ Your project-local workspace created with `carnie camp init`. The `camp.yml` fil
 
 - `camp.yml` - Configuration for tools, preferences, and project settings
 - In the future: `carniecamp.db` - Store executed workflow data
+ - `carniecamp.db` - Store local work orders
 
 Example `camp.yml`:
 
@@ -106,6 +108,7 @@ Carnies are the workers - Opencode/Claude Code sessions with primed context. Whe
 5. Move to the next task
 
 See `docs/CAMP.md` and `docs/OPERATOR.md` for details.
+Work orders are documented in `docs/WORK_ORDERS.md`.
 
 ## Carnie Rules
 
