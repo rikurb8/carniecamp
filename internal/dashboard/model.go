@@ -58,20 +58,21 @@ const (
 )
 
 type Model struct {
-	width        int
-	height       int
-	columns      []issueColumn
-	activeColumn int
-	activeView   ViewType
-	refresh      time.Duration
-	limit        int
-	lastUpdated  time.Time
-	summary      bd.StatusSummary
-	errMessage   string
-	showHelp     bool
-	collapsed    map[string]bool
-	lists        []list.Model
-	homeSpinners []spinner.Model
+	width           int
+	height          int
+	columns         []issueColumn
+	activeColumn    int
+	activeView      ViewType
+	refresh         time.Duration
+	limit           int
+	lastUpdated     time.Time
+	summary         bd.StatusSummary
+	errMessage      string
+	showHelp        bool
+	collapsed       map[string]bool
+	featureChildren map[string][]Issue
+	lists           []list.Model
+	homeSpinners    []spinner.Model
 }
 
 type drawerEntry struct {
@@ -83,7 +84,6 @@ func NewModel(refresh time.Duration, limit int) Model {
 	styles := newDashboardStyles()
 	delegate := newDrawerDelegate(styles, 1)
 	futureList := newDrawerList(delegate)
-	closedList := newDrawerList(delegate)
 
 	// Multiple spinner styles for the border
 	spinnerTypes := []spinner.Spinner{
@@ -104,14 +104,14 @@ func NewModel(refresh time.Duration, limit int) Model {
 	}
 
 	return Model{
-		refresh:   refresh,
-		limit:     limit,
-		collapsed: map[string]bool{},
+		refresh:         refresh,
+		limit:           limit,
+		collapsed:       map[string]bool{},
+		featureChildren: map[string][]Issue{},
 		columns: []issueColumn{
-			{Title: "Future Work"},
-			{Title: "Completed Work"},
+			{Title: "Open Features"},
 		},
-		lists:        []list.Model{futureList, closedList},
+		lists:        []list.Model{futureList},
 		homeSpinners: spinners,
 	}
 }

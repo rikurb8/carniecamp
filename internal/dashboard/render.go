@@ -273,7 +273,7 @@ func renderActiveDrawer(m Model, width int, height int, listHeight int, showSumm
 	if len(rows) < height {
 		rows = append(rows, renderPaneHeaderLine(title, innerWidth, styles.columnTitle, borderStyle))
 	}
-	if showSummary && len(rows) < height {
+	if showSummary && len(m.columns) > 1 && len(rows) < height {
 		otherIndex := (m.activeColumn + 1) % len(m.columns)
 		other := m.columns[otherIndex]
 		otherCount := len(buildDrawerEntries(other, m.collapsed))
@@ -381,6 +381,24 @@ func renderDetailPanel(m Model, width int, height int, styles dashboardStyles) s
 	if selected.Description != "" {
 		lines = append(lines, styles.panelTitle.Render(truncateASCII("Notes", width)))
 		for _, line := range wrapLines(selected.Description, width) {
+			lines = append(lines, styles.item.Render(truncateASCII(line, width)))
+		}
+	}
+
+	children := m.featureChildren[selected.ID]
+	lines = append(lines, "")
+	if len(children) == 0 {
+		lines = append(lines, styles.panelTitle.Render(truncateASCII("Child Tasks", width)))
+		lines = append(lines, styles.dimText.Render(truncateASCII("(none)", width)))
+	} else {
+		header := fmt.Sprintf("Child Tasks (%d)", len(children))
+		lines = append(lines, styles.panelTitle.Render(truncateASCII(header, width)))
+		for _, child := range children {
+			status := mapStatusBadge(child.Status)
+			if status == "" {
+				status = strings.ToUpper(child.Status)
+			}
+			line := fmt.Sprintf("P%d %s %s %s", child.Priority, status, child.ID, child.Title)
 			lines = append(lines, styles.item.Render(truncateASCII(line, width)))
 		}
 	}

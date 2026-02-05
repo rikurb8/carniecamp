@@ -129,19 +129,31 @@ func (m *Model) setCollapseForSelected(collapse bool) {
 }
 
 func (m *Model) updateColumns(data dataState) {
-	future := append([]Issue{}, data.Ready...)
-	future = append(future, data.InProgress...)
-	future = append(future, data.Blocked...)
+	allIssues := append([]Issue{}, data.Ready...)
+	allIssues = append(allIssues, data.InProgress...)
+	allIssues = append(allIssues, data.Blocked...)
+	allIssues = append(allIssues, data.Closed...)
+	m.featureChildren = buildFeatureChildren(allIssues)
 
-	orderedFuture, futureParents, futureLevels := orderIssuesWithParents(future)
-	orderedClosed, closedParents, closedLevels := orderIssuesWithParents(data.Closed)
+	openFeatures := filterOpenFeatures(data)
+	orderedFeatures, featureParents, featureLevels := orderIssuesWithParents(openFeatures)
 
-	m.columns[0].Issues = orderedFuture
-	m.columns[0].ParentByID = futureParents
-	m.columns[0].LevelByID = futureLevels
-	m.columns[1].Issues = orderedClosed
-	m.columns[1].ParentByID = closedParents
-	m.columns[1].LevelByID = closedLevels
+	if len(m.columns) == 0 {
+		m.columns = []issueColumn{{Title: "Open Features"}}
+	}
+	if m.activeColumn >= len(m.columns) {
+		m.activeColumn = 0
+	}
+	if len(m.columns) > 0 {
+		m.columns[0].Issues = orderedFeatures
+		m.columns[0].ParentByID = featureParents
+		m.columns[0].LevelByID = featureLevels
+	}
+	for idx := 1; idx < len(m.columns); idx++ {
+		m.columns[idx].Issues = nil
+		m.columns[idx].ParentByID = nil
+		m.columns[idx].LevelByID = nil
+	}
 }
 
 func (m Model) selectedIssue() *Issue {
